@@ -16,7 +16,7 @@ def read(*filenames, **kwargs):
         with io.open(filename, encoding=encoding) as f:
             buf.append(f.read())
     return sep.join(buf)
-long_description = read('README.txt')
+long_description = read('README.rst')
 
 
 setup(
