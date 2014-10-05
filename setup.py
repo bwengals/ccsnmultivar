@@ -1,23 +1,43 @@
 from setuptools import setup, find_packages
+import io
+import codecs
+import os
+import sys
+
+import ccsnmultivar
+
+here = os.path.abspath(os.path.dirname(__file__))
+
+def read(*filenames, **kwargs):
+    encoding = kwargs.get('encoding', 'utf-8')
+    sep = kwargs.get('sep', '\n')
+    buf = []
+    for filename in filenames:
+        with io.open(filename, encoding=encoding) as f:
+            buf.append(f.read())
+    return sep.join(buf)
+long_description = read('README.txt')
 
 
 setup(
-  name = 'ccsnmultivar',
-  packages = ['ccsnmultivar'], # this must be the same as the name above
-  version = '0.1.23',
-  description = 'Multivariate regression analysis of core-collapse simulations',
-  author = 'Bill Engels',
-  author_email = 'w.j.engels@gmail.com',
-  url = 'https://github.com/bwengals/CCSNMultivar', # use the URL to the github repo
-  download_url = 'https://github.com/bwengals/CCSNMultivar/tarball/0.1', # I'll explain this in a second
-  keywords = ['regression', 'core-collapse', 'supernova'], # arbitrary keywords
-  classifiers = [],
-  install_requires=[
+    name = 'ccsnmultivar',
+    packages = ['ccsnmultivar'],
+    version = ccsnmultivar.__version__,
+    description = 'Multivariate regression analysis of core-collapse simulations',
+    long_description = long_description,
+    author = 'Bill Engels',
+    author_email = 'w.j.engels@gmail.com',
+    url = 'https://github.com/bwengals/CCSNMultivar',
+    download_url = 'https://github.com/bwengals/CCSNMultivar/tarball/0.1',
+    keywords = ['regression', 'core-collapse', 'supernova'],
+    classifiers = [],
+    platforms = 'any',
+    install_requires=[
        'numpy',
-       'scipy', 
+       'scipy',
        'tabulate',
-        'patsy',
-        'pandas',
-        'scikit-learn',
+       'patsy',
+       'pandas',
+       'scikit-learn',
     ]
 )

@@ -18,7 +18,7 @@ This [Python](http://www.python.org/) module aids the analysis of core-collapse 
 Make sure that the python packages numpy, scipy, pandas, and patsy are already installed.
 pip installer will install patsy, pandas and tabular if they aren't installed already.
 
-    cd /path/for/code
+    cd /path/to/ccsnmultivar
 1. Download github zip file here
 2. Unzip
 ```
@@ -87,7 +87,7 @@ Comparison           Hotellings T^2    p-value
 [A4 - A2]                0.4            0.99
 B^1                     10.6            0.012
 B^2                     50.9            0.000
-B^2                      4.3            0.3
+B^3                      4.3            0.3
 [A1 - A2]*B^1            1.1            0.78
 [A1 - A2]*B^2           12.99           0.044
     .                     .              .
