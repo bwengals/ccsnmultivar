@@ -14,6 +14,10 @@ This [Python](http://www.python.org/) module aids the analysis of core-collapse 
 * Uses pandas for data handling
 * A simplified formula language specific to this domain
 
+
+## [Documentation](http://ccsnmultivar.readthedocs.org/en/latest/)
+
+
 ## Installation
 Make sure that the python packages numpy, scipy, pandas, and patsy are already installed.
 pip installer will install patsy, pandas and tabular if they aren't installed already.
@@ -21,7 +25,7 @@ pip installer will install patsy, pandas and tabular if they aren't installed al
     cd /path/to/ccsnmultivar
 1. Download github zip file here
 2. Unzip
-```
+```python
 # 
 cd /CCSNMultivar-master
 
@@ -31,9 +35,9 @@ or
 
     pip install -U ccsnmultivar
 
-# Basic Walkthrough
+## Basic Walkthrough
 
-```
+```python
 # import code
 import ccsnmultivar as cm
 
@@ -49,12 +53,12 @@ Now we need to make two objects, a Basis object and a design matrix object
 - Instantiate a basis object
     Currently, I've implemented PCA with SVD, but also sklearns Kernel PCA, a 
     nonlinear basis decomposition.
-```
+```python
 # use a PCA basis keeping the first 10 Principal Components
 pca = cm.PCA(num_components=10)
 ```    
 - Instantiate a DesignMatrix object
-```
+```python
 # first, define a formula string describing how the physical parameters
 #    need to be translated to the design matrix.  Say we only want to use
 #    encodings of the parameters A and B (A is discrete, B is continuous)
@@ -68,7 +72,7 @@ The formula reads: designmatrix includes parameters A and B, and interaction
 Now we wrap the waveforms, basis, and design matrix (everything we need to work
 with the equation (Y = XBZ^\dagger).
 
-```
+```python
 # instantiate Multivar object
 M = cm.Multivar(Y,X_obj, pca)
 
