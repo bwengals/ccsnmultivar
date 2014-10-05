@@ -13,9 +13,7 @@ This [Python](http://www.python.org/) module aids the analysis of core-collapse 
 ## Details
 * Uses pandas for data handling
 * A simplified formula language specific to this domain
-
-
-## [Documentation](http://ccsnmultivar.readthedocs.org/en/latest/)
+* [Documentation](http://ccsnmultivar.readthedocs.org/en/latest/)
 
 
 ## Installation
