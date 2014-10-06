@@ -81,7 +81,7 @@ encoded.  Reading the formula from left to right:
 
 1. Include columns for the physical parameter named "A".
 2. Include columns for the physical parameter named "B".
-3. Include columns for interaction terms between parameters "A" and "B"
+3. Include columns for interaction terms between parameters "A" and "B".  
 The "|" character seperates instructions for *what* goes into the design matrix from 
 *how* it goes in.
 4. Use a deviation encoding on parameter "A".  One value of "A" needs to be omitted 
