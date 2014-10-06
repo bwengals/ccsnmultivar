@@ -55,9 +55,9 @@ Y = cm.load_waveforms(path_to_waveforms)
 
 Note that Abdikamalov et al's 2013 waveform catalog and parameter file are included
 in the ccsnmultivar/ProcessedWaveforms directory of the GitHub repo as an example of 
-how to format the raw files for input.  To use these for the walkthrough, you have to 
-download all the code.  On the right side of the GitHub page, there is a toolbar with a 
-Download button.  Download, then unzip, to access this example waveform catalog.
+how to format the raw files for input.  To access these for the walkthrough, look at
+the right side of the GitHub page, there is a toolbar with a 
+Download button.  Download, then unzip.  
 
 Now we need to make two objects, a Basis object and a DesignMatrix object
 
