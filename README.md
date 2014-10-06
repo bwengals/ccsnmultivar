@@ -69,6 +69,8 @@ First we instantiate a Basis object.  Currently, there are two available types o
 ```python
 # use a PCA basis keeping the first 10 Principal Components
 pca = cm.PCA(num_components=10)
+# to actually do the PCA, we have to "fit" the object
+pca.fit()
 ```    
 Next we instantiate a DesignMatrix object.
 
