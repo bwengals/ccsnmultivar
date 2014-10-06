@@ -57,7 +57,8 @@ in the ProcessedWaveforms directory as an example of how to format the raw files
 
 Now we need to make two objects, a Basis object and a design matrix object
 
-First we instantiate a Basis object.  Currently, there are two Basis objects. 
+First we instantiate a Basis object.  Currently, there are two Basis objects.
+ 
 1. PCA - using the Singular Value Decompostion (SVD)
 2. KCPA - Kernel PCA.  A wrapper for sklearns [Kernel PCA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA) 
 
