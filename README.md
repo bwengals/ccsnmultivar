@@ -49,14 +49,14 @@ as an example of how to format the raw files for input.
 
 Now we need to make two objects, a Basis object and a design matrix object
 
-- Instantiate a basis object
+First we instantiate a basis object.
     Currently, I've implemented PCA with SVD, but also sklearns Kernel PCA, a 
 
 ```python
 # use a PCA basis keeping the first 10 Principal Components
 pca = cm.PCA(num_components=10)
 ```    
-Instantiate a DesignMatrix object
+Next we instantiate a DesignMatrix object.
 
 ```python
 # first, define a formula string describing how the physical parameters
@@ -68,15 +68,15 @@ formula = "A + B + A*B | Dev(A,omit=2), Poly(B,degree=4)"
 
 The formula contains 5 peices of information that determine how the design matrix is 
 encoded.  Reading the formula from left to right:
-1.  Include columns for the physical parameter named "A"
-2.  Include columns for the physical parameter named "B"
-3.  Include columns for interaction terms between parameters "A" and "B"
+
+1. Include columns for the physical parameter named "A".
+2. Include columns for the physical parameter named "B".
+3. Include columns for interaction terms between parameters "A" and "B"
 The "|" character seperates instructions for *what* goes into the design matrix from 
 *how* it goes in.
-4.  Use a deviation encoding on parameter "A".  One value of "A" needs to be omitted 
+4. Use a deviation encoding on parameter "A".  One value of "A" needs to be omitted 
 from the design matrix in a deviation encoding, this value is "2".
-4.  Use a chebyshev polynomial encoding on parameter "B".  Fit "B" with a 4th degree 
-polynomial.
+4. Use a chebyshev polynomial encoding on parameter "B".  Fit "B" with a 4th degree polynomial.
 
 Now we instantiate the designmatrix object with two arguements, the formula, and the
 path to the parameter file.
