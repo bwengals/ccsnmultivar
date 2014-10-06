@@ -49,15 +49,19 @@ import ccsnmultivar as cm
 
 # load waveforms
 path_to_waveforms = "/path/to/waveforms.dat"
-Y = cm.load_data(path_to_waveforms)
+# the Abdikamalov waveform file is called "Abdika13Y.dat"
+Y = cm.load_waveforms(path_to_waveforms)
 ```
 
-Note that Abdikamalov et al's 2014 waveform catalog and parameter file are included
-in the ProcessedWaveforms directory as an example of how to format the raw files for input.  
+Note that Abdikamalov et al's 2013 waveform catalog and parameter file are included
+in the ccsnmultivar/ProcessedWaveforms directory of the GitHub repo as an example of 
+how to format the raw files for input.  To use these for the walkthrough, you have to 
+download all the code.  On the right side of the GitHub page, there is a toolbar with a 
+Download button.  Download, then unzip, to access this example waveform catalog.
 
-Now we need to make two objects, a Basis object and a design matrix object
+Now we need to make two objects, a Basis object and a DesignMatrix object
 
-First we instantiate a Basis object.  Currently, there are two Basis objects.
+First we instantiate a Basis object.  Currently, there are two available types of Basis objects.
  
 1. PCA - using the Singular Value Decompostion (SVD)
 2. KCPA - Kernel PCA.  A wrapper for sklearns [Kernel PCA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA) 
@@ -92,9 +96,10 @@ Now we instantiate the DesignMatrix object with two arguements, the formula, and
 path to the parameter file.
 ```python
 
-path_to_parameterfile = "/path/to/parameterfile.dat"
-params = cm.load_data(path_to_parameterfile)
+# note that the provided Abdikamalov+ parameterfile is called "Abdika13params.csv"
+path_to_parameterfile = "/path/to/parameterfile.csv"
 
+# note that we dont need to load the paramfile, just supply the path.
 X_obj = cm.DesignMatrix(path_to_parameterfile, formula)
 ```
 
