@@ -42,20 +42,22 @@ import ccsnmultivar as cm
 # load waveforms
 path_to_waveforms = "/path/to/waveforms.dat"
 Y = cm.load_data(path_to_waveforms)
-
-path_to_parameterfile = "/path/to/parameterfile.dat"
-params = cm.load_data(path_to_parameterfile)
 ```
+
+Note that Abdikamalov et al's 2014 waveform catalog and parameter file are included
+as an example of how to format the raw files for input.  
+
 Now we need to make two objects, a Basis object and a design matrix object
 
 - Instantiate a basis object
     Currently, I've implemented PCA with SVD, but also sklearns Kernel PCA, a 
-    nonlinear basis decomposition.
+
 ```python
 # use a PCA basis keeping the first 10 Principal Components
 pca = cm.PCA(num_components=10)
 ```    
-- Instantiate a DesignMatrix object
+Instantiate a DesignMatrix object
+
 ```python
 # first, define a formula string describing how the physical parameters
 #    need to be translated to the design matrix.  Say we only want to use
@@ -63,17 +65,42 @@ pca = cm.PCA(num_components=10)
 
 formula = "A + B + A*B | Dev(A,omit=2), Poly(B,degree=4)"
 ```
-The formula reads: designmatrix includes parameters A and B, and interaction 
-    terms between A and B (A*B).  A is deviation encoded, A=2 is left out.
-    B is encoded by a 4th degree **Chebyshev polynomial**.
 
-Now we wrap the waveforms, basis, and design matrix (everything we need to work
-with the equation (Y = XBZ^\dagger).
+The formula contains 5 peices of information that determine how the design matrix is 
+encoded.  Reading the formula from left to right:
+1.  Include columns for the physical parameter named "A"
+2.  Include columns for the physical parameter named "B"
+3.  Include columns for interaction terms between parameters "A" and "B"
+The "|" character seperates instructions for *what* goes into the design matrix from 
+*how* it goes in.
+4.  Use a deviation encoding on parameter "A".  One value of "A" needs to be omitted 
+from the design matrix in a deviation encoding, this value is "2".
+4.  Use a chebyshev polynomial encoding on parameter "B".  Fit "B" with a 4th degree 
+polynomial.
+
+Now we instantiate the designmatrix object with two arguements, the formula, and the
+path to the parameter file.
+```python
+
+path_to_parameterfile = "/path/to/parameterfile.dat"
+params = cm.load_data(path_to_parameterfile)
+
+X_obj = cm.DesignMatrix(path_to_parameterfile, formula)
+```
+
+Now with the waveforms in numpy array Y, the basis object, and design matrix object on hand,
+we instantiate a multivar object with these three arguements.
 
 ```python
 # instantiate Multivar object
 M = cm.Multivar(Y,X_obj, pca)
 
+```
+
+This makes it easy to create many different design matrix, basis, and multivar objects to test 
+different fits and parameter influences quickly.
+
+```python
 # now we do a fit to time domain waveforms (solve for B)
 M.fit('time')
 
@@ -125,10 +152,8 @@ Y_pred = M.Y_predicted
   - ICA, kmeans, fix KernelPCA, etc.
 * other design matrix fitting methods 
   - splines, rbfs, etc.
-* crossvalidation with printed summary
-
-
-* Gaussian Process reconstructions
+* crossvalidation with printed summary()
+* Gaussian Process (or other interpolation/machine learning method) reconstructions
 
 
 
