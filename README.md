@@ -21,8 +21,10 @@ Make sure that the python packages numpy, scipy, pandas, and patsy are already i
 pip installer will install patsy, pandas and tabular if they aren't installed already.
 
     cd /path/to/ccsnmultivar
+
 1. Download github zip file here
 2. Unzip
+
 ```python
 # 
 cd /CCSNMultivar-master
@@ -34,13 +36,12 @@ or
     pip install -U ccsnmultivar
 
 ## Basic Walkthrough
-
 Using the code happens in four steps:
+
 1. Making a Basis object.
 2. Making a DesignMatrix object.
 3. Wrapping them in a Multivar object.
 4. Analysis using the Multivar object's methods.
-
 
 ```python
 # import code
