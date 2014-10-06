@@ -9,17 +9,11 @@ import warnings as warnings
 import csv as csv
 from tabulate import tabulate
 
-# imports of multivar submodules
-from designmatrix import DesignMatrix
-from basis import PCA, KPCA
-from basis import load_waveforms
 # TODO
-# from waveforms import *
-#   waveform class.  each waveform is named (matching design matrix so no screwups can happen)
+#waveform class.  each waveform is named (matching design matrix so no screwups can happen)
 #   each waveform set can be given metadata (what catalog)
 #   different transforms: fft, amp/phase, spectrograms
-# from detectorsetup *
-#   detectorsetup class.  instead of simulating waveforms in one det, expand to det network
+#detectorsetup class.  instead of simulating waveforms in one det, expand to det network
 
 class Multivar(object):
     """
