@@ -35,6 +35,13 @@ or
 
 ## Basic Walkthrough
 
+Using the code happens in four steps:
+1. Making a Basis object.
+2. Making a DesignMatrix object.
+3. Wrapping them in a Multivar object.
+4. Analysis using the Multivar object's methods.
+
+
 ```python
 # import code
 import ccsnmultivar as cm
@@ -45,12 +52,13 @@ Y = cm.load_data(path_to_waveforms)
 ```
 
 Note that Abdikamalov et al's 2014 waveform catalog and parameter file are included
-as an example of how to format the raw files for input.  
+in the ProcessedWaveforms directory as an example of how to format the raw files for input.  
 
 Now we need to make two objects, a Basis object and a design matrix object
 
-First we instantiate a basis object.
-    Currently, I've implemented PCA with SVD, but also sklearns Kernel PCA, a 
+First we instantiate a Basis object.  Currently, there are two Basis objects. 
+1. PCA - using the Singular Value Decompostion (SVD)
+2. KCPA - Kernel PCA.  A wrapper for sklearns [Kernel PCA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA) 
 
 ```python
 # use a PCA basis keeping the first 10 Principal Components
@@ -78,7 +86,7 @@ The "|" character seperates instructions for *what* goes into the design matrix 
 from the design matrix in a deviation encoding, this value is "2".
 4. Use a chebyshev polynomial encoding on parameter "B".  Fit "B" with a 4th degree polynomial.
 
-Now we instantiate the designmatrix object with two arguements, the formula, and the
+Now we instantiate the DesignMatrix object with two arguements, the formula, and the
 path to the parameter file.
 ```python
 
@@ -88,7 +96,7 @@ params = cm.load_data(path_to_parameterfile)
 X_obj = cm.DesignMatrix(path_to_parameterfile, formula)
 ```
 
-Now with the waveforms in numpy array Y, the basis object, and design matrix object on hand,
+Now with the waveforms in numpy array Y, the Basis object, and design matrix object on hand,
 we instantiate a multivar object with these three arguements.
 
 ```python
@@ -97,7 +105,7 @@ M = cm.Multivar(Y,X_obj, pca)
 
 ```
 
-This makes it easy to create many different design matrix, basis, and multivar objects to test 
+This makes it easy to create many different DesignMatrix, Basis, and Multivar objects to test 
 different fits and parameter influences quickly.
 
 ```python
