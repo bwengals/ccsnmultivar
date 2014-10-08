@@ -10,6 +10,6 @@ from ccsnmultivar.multivar import Multivar
 from ccsnmultivar.designmatrix import DesignMatrix
 # imports of basis classes
 from ccsnmultivar.basis import PCA, KPCA
-from ccsnmultivar.basis import load_waveforms
+#from ccsnmultivar.basis import load_waveforms
 
 

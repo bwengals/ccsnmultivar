@@ -19,48 +19,48 @@ class Multivar(object):
     """
     When multivar objects are instantiated, the waveforms are loaded and 
     """
-    def __init__(self,waveforms, designmatrix_object, basis_object):
-        self.Y             = waveforms
-        self.A             = basis_object.fit_transform(self.Y)
-        self.X             = designmatrix_object.get_X()
-        self.detector      = 'H1'
+    def __init__(self, waveforms, designmatrix_object, basis_object):
+        self._Y             = waveforms
+        self._A             = basis_object.fit_transform(self._Y)
+        self._X             = designmatrix_object.get_X()
+        self._detector      = 'H1'
         # other useful parameters
-        self.formula       = designmatrix_object.get_formula()
-        self.column_names  = designmatrix_object.get_columnnames()
-        self.dof           = designmatrix_object.get_dof()
+        self._formula       = designmatrix_object.get_formula()
+        self._column_names  = designmatrix_object.get_columnnames()
+        self._dof           = designmatrix_object.get_dof()
         # load basis_object
-        self.num_components = basis_object.num_components 
-        # give basis object, and desigm matrix object into DM class selfs
-        self.basis_object = basis_object
-        self.designmatrix_object = designmatrix_object
+        self._num_components = basis_object.num_components
+        # give basis object, and desigm matrix object into DM class self
+        self._basis_object = basis_object
+        self._designmatrix_object = designmatrix_object
 
-    def fit(self,type_of_fit):
+    def fit(self, type_of_fit):
         # TODO: if waveforms complex valued, fit freq domain, otherwise do time domain
         if 'time' in type_of_fit:
-            self.fit_time_domain()
+            self._fit_time_domain()
         elif 'freq' in type_of_fit:
-            self.fit_freq_domain()
+            self._fit_freq_domain()
         elif 'no' in type_of_fit:
-            self.fit_no_basis()
+            self._fit_no_basis()
         else:
             raise Exception("Unknown fit-type key word")
 
-    def fit_time_domain(self):
+    def _fit_time_domain(self):
         # solve for estimators of B and Sigma_Z
-        X      = np.matrix(self.X)
-        Y      = np.matrix(self.Y)
-        A      = np.matrix(self.A)
+        X      = np.matrix(self._X)
+        Y      = np.matrix(self._Y)
+        A      = np.matrix(self._A)
         n,p    = np.shape(X)
-        df     = float(self.dof)
+        df     = float(self._dof)
         Cx     = np.linalg.pinv(X.T*X)
 
         Bhat = Cx*X.T*A
         R = A - X*Bhat
         Sigma_Z = R.T*R*(1./df)
-        self.Bhat = np.array(Bhat)
-        self.sumofsquares = np.sum(np.sum(np.square(R)))
+        self._Bhat = np.array(Bhat)
+        self._sumofsquares = np.sum(np.sum(np.square(R)))
 
-        columns = np.arange(0,self.num_components)
+        columns = np.arange(0,self._num_components)
         T_2_list = []
         p_value_list = []
         z_score_list = []
@@ -80,31 +80,31 @@ class Multivar(object):
 
             T_2_list.append(T_2)
         results = [['Comparison','Hotellings T^2', "p-value", "Sigma"]]
-        for i in np.arange(0,len(self.column_names)):
-            results.append([self.column_names[i], T_2_list[i], 
+        for i in np.arange(0,len(self._column_names)):
+            results.append([self._column_names[i], T_2_list[i], 
                             p_value_list[i],z_score_list[i]] )
-        self.results = results
+        self._results = results
 
-    def fit_freq_domain(self):
+    def _fit_freq_domain(self):
         print "stuff"
 
-    def fit_no_basis(self):
+    def _fit_no_basis(self):
         print "stuff"
 
 
     def summary(self):
-        if self.dof < 1:
+        if self._dof < 1:
             raise Exception("Number of waveforms < number of X columns, Hotellings T2 undefined")
         try:
-            self.results
+            self._results
         except:
             raise Exception("Regression hasn't been fit yet.  run .fit()")
             
         else:
-            basis_info = [["Catalog Used:",str(self.basis_object.catalog_name)]]
-            basis_info.append(["Basis Type Used:",str(self.basis_object.decomposition)])
+            basis_info = [["Catalog Used:",str(self._basis_object.catalog_name)]]
+            basis_info.append(["Basis Type Used:",str(self._basis_object.decomposition)])
             # collect table of fit metadata
-            basis_params = self.basis_object.get_params()
+            basis_params = self._basis_object.get_params()
             # convert dictionary to list
             for key,value in basis_params.iteritems():
                 basis_info.append([key,value])
@@ -112,69 +112,69 @@ class Multivar(object):
             print tabulate(basis_info,tablefmt='plain')
 
             # make T^2 & pvalue table
-            headers = self.results[0]
-            table   = self.results[1:]
+            headers = self._results[0]
+            table   = self._results[1:]
             print tabulate(table, headers, tablefmt="rst")
-            X = np.matrix(self.X)
+            X = np.matrix(self._X)
             # print null Hypothesis
             print "Null Hypothesis: B_{row i} = B_{row i+1} = ... = B_{row N} = 0"
             print "Probablitity of observing our results, given the Null is true = p-value"
             # print condition number of X.T*X
             cond_num = np.linalg.cond(X.T*X)
             print "Condition Number of X^T*X: " + str(cond_num)
-            print "Sum-of-Squares of Fit Residual: %s" % self.sumofsquares
+            print "Sum-of-Squares of Fit Residual: %s" % self._sumofsquares
 
     def predict(self,*arg):
         if len(arg) == 0:
-            # then predict self.Y
-            Xpred = self.X
+            # then predict self._Y
+            Xpred = self._X
             # make sure to just save the phys param names we want
-            formula_dict = parse_formula(self.formula)[0]
+            formula_dict = parse_formula(self._formula)[0]
             column_names = formula_dict.keys()
             # save prediction parameters
-            self.prediction_params = self.parameter_df[column_names]
+            self._prediction_params = self._parameter_df[column_names]
         elif len(arg) == 1:
             # then predict the extra dataframe parameters
             new_df = arg[0]
             #concat new_df underneath old df
             # keys are column names of new_df and old_df that we want to keep
-            formula_dict = parse_formula(self.formula)[0]
+            formula_dict = parse_formula(self._formula)[0]
             column_names = formula_dict.keys()
             new_df = new_df[column_names]
-            old_df = self.parameter_df[column_names]
+            old_df = self._parameter_df[column_names]
             # save prediction parameters
-            self.prediction_params = new_df[column_names]
+            self._prediction_params = new_df[column_names]
             # add column with label for new or old
             new_df['Predict'] = True
             old_df['Predict'] = False
             # concat vertically
             big_df = pd.concat([old_df,new_df])
             # convert to design matrix
-            Xdf = formula_to_design_matrix(self.formula,big_df)
+            Xdf = formula_to_design_matrix(self._formula,big_df)
             # which rows of Xdf to keep
             keep = np.array(big_df[big_df['Predict'] == True].index)
             Xpred = np.array(Xdf)[keep,:]
         else:
             raise Exception("Only one or two arguements allowed, not more")
         # make predictions
-        if self.Bhat == 'Null':
+        if self._Bhat == 'Null':
             raise Exception("Regression coefficients haven't been fit yet")
         else:
             Xpred = np.matrix(Xpred)
-            Bhat = np.matrix(self.Bhat)
-            Z = np.matrix(self.Z)
+            Bhat = np.matrix(self._Bhat)
+            Z = np.matrix(self._Z)
             Y_new = np.array(Xpred*Bhat*Z.T)
-        self.Y_predicted = Y_new
+        self._Y_predicted = Y_new
 
 
     def load_detector(self, detector='H1'):
-        self.detector = detector
-        self.PSD = set_pst()
+        self._detector = detector
+        self._PSD = set_pst()
 
-def set_psd(self):
-    detector = self.detector
+def _set_psd(self):
+    detector = self._detector
     # Load in detector noise curve for zero_det_high_p
-    psd = GetDetectorPSD(detector)
+    psd = _GetDetectorPSD(detector)
     # psd has freq resolution = 1/3 with 6145 samples
     dF = 1./3.
     N_fd = 6145.
@@ -192,10 +192,10 @@ def set_psd(self):
     psd[0:11] = 200.
     psd[2000:8192] = 200.
     psd = np.concatenate((psd,psd[::-1])) 
-    self.psd = psd
+    self._psd = psd
 
 
-def GetDetectorPSD(detectorName, LIGO3FLAG=0):
+def _GetDetectorPSD(detectorName, LIGO3FLAG=0):
     """ GetDetectorPSD - function to return the PSD of the detector described by
     detectorName.
 

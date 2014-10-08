@@ -8,25 +8,25 @@ import numpy as np
 
 class DesignMatrix(object):
     def __init__(self,path_to_parameterfile,formula):
-        self.formula        = formula
-        self.parameter_df   = paramfile_to_df(path_to_parameterfile)
-        self.X_df           = formula_to_design_matrix(self.formula,self.parameter_df)
-        if len(self.X_df) < len(self.X_df.columns.tolist()):
+        self._formula        = formula
+        self._parameter_df   = paramfile_to_df(path_to_parameterfile)
+        self._X_df           = formula_to_design_matrix(self._formula,self._parameter_df)
+        if len(self._X_df) < len(self._X_df.columns.tolist()):
             # if n < p
             warnings.warn("Number of columns > number of waveforms.  Hotellings T2 not defined")
             # dof is degrees of freedom
-            self.X_dof = np.nan
+            self._X_dof = np.nan
         else:
-            self.X_dof =  len(self.X_df) - len(self.X_df.columns.tolist())
+            self._X_dof =  len(self._X_df) - len(self._X_df.columns.tolist())
 
     def get_dof(self):
-        return self.X_dof
+        return self._X_dof
     def get_columnnames(self):
-        return self.X_df.columns.tolist()
+        return self._X_df.columns.tolist()
     def get_X(self):
-        return np.asarray(self.X_df)
+        return np.asarray(self._X_df)
     def get_formula(self):
-        return self.formula
+        return self._formula
 
 def paramfile_to_df(path_to_parameterfile):
     """
@@ -128,6 +128,9 @@ def encode_design_matrix(formula_dict, inter_list, data_frame):
     6. Interaction between any of the above two types
     """
     # TODO errors when there is no interaction in the formula
+
+    # first make intercept term
+    print formula_dict.keys()
     Xdf_dict = {}
     for key in formula_dict:
         encoding,arg = formula_dict[key]
@@ -178,6 +181,9 @@ def encode_design_matrix(formula_dict, inter_list, data_frame):
     Xdf_int = pd.concat(list_of_new_inter_dfs,axis=1)
     Xdf     = pd.concat(Xdf_list, axis=1)
     Xdf     = pd.concat([Xdf,Xdf_int],axis=1)
+    # add intercept to df
+    X_intercept = pd.DataFrame(np.ones(len(Xdf)), columns = ['Intercept'])
+    Xdf     = pd.concat([X_intercept, Xdf],axis=1)
     return Xdf
 
 
