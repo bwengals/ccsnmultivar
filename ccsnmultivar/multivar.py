@@ -13,43 +13,38 @@ class Multivar(object):
     When multivar objects are instantiated, the waveforms are loaded and 
     """
     def __init__(self, catalog_object, designmatrix_object, basis_object):
-
-        self._col_names     = self.designmatrix_object.get_columnnames()
-        self._row_names     = self.designmatrix_object.get_rownames()
-
-
-        self._Y, self._X    = match_names(self, catalog_object, designmatrix_object)
-
-        # fit basis object
-        self._A             = basis_object.fit_transform(self._Y)
-
-        # other useful parameters
-        self._formula       = designmatrix_object.get_formula()
-        self._column_names  = designmatrix_object.get_columnnames()
-        self._dof           = designmatrix_object.get_dof()
-        # load basis_object
-        self._num_components = basis_object.num_components
-        # give basis object, and desigm matrix object into DM class self
-        self._basis_object = basis_object
+        # save input objects
+        self._catalog_object      = catalog_object
+        self._basis_object        = basis_object
         self._designmatrix_object = designmatrix_object
+        # first fit objects, match waveforms to design matrix rows
+        Y,X,A,col_names,row_names = self._run_fits()
+        # save fit results
+        self._X                   = X
+        self._Y                   = Y
+        self._A                   = A
+        self._col_names           = col_names
+        self._row_names           = row_names
+
         self._detector      = 'H1'
 
-    def _match_names(self,catalog_object, designmatrix_object):
-        #   1. get list of Y_names (row 0 first, row -1 last)
-        #   2. make corresponding np.array(Y)
-        Y_dict = catalog_object.get_catalog()
-        Y_rows = Y_dict.keys()
-        Y      = np.vstack(Y_dict.values())
-        #   1. get list of X_names (row 0 first, row -1 last) TODO (not using pandas)
-        #   2. make corresponding np.array(X)
-        X_dict,wavenames = designmatrix_object.get_X()
-        row_names = 
-        row_names = 
-
-
-        # get pandas dataframe design matrix, convert to dict {wavenames, list(rows)}
-        X_df = designmatrix_object.get_X()
-        self.X_dict = X_df.to_dict('list')
+    def _run_fits(self):
+        """
+        This function fits objects passed to Multivar, makes sure wave ordering matches
+        """
+        # run fits
+        # fit catalog object
+        Y_dict = self._catalog_object.fit_transform()
+        # fit designmatrix object
+        X,Xcol_names,row_names = self._designmatrix_object.fit_transform()
+        # make sure waveforms are matched
+        # loop through Xrow_names, use as key for Y_dict, populate Y_matrix
+        Y = np.empty((len(row_names),len(Y_dict[Y_dict.keys()[0]])))
+        for i in np.arange(0,len(row_names)):
+            Y[i,:] = Y_dict[row_names[i]]
+        # fit basis object
+        A = self._basis_object.fit_transform(Y)
+        return Y, X, A, Xcol_names, row_names
 
     def fit(self, type_of_fit):
         # TODO: if waveforms complex valued, fit freq domain, otherwise do time domain
@@ -68,7 +63,7 @@ class Multivar(object):
         Y      = np.matrix(self._Y)
         A      = np.matrix(self._A)
         n,p    = np.shape(X)
-        df     = float(self._dof)
+        df     = float(n - p)
         Cx     = np.linalg.pinv(X.T*X)
 
         Bhat = Cx*X.T*A
@@ -77,7 +72,7 @@ class Multivar(object):
         self._Bhat = np.array(Bhat)
         self._sumofsquares = np.sum(np.sum(np.square(R)))
 
-        columns = np.arange(0,self._num_components)
+        columns = np.arange(0,np.shape(A)[1])
         T_2_list = []
         p_value_list = []
         z_score_list = []
@@ -97,8 +92,8 @@ class Multivar(object):
 
             T_2_list.append(T_2)
         results = [['Comparison','Hotellings T^2', "p-value", "Sigma"]]
-        for i in np.arange(0,len(self._column_names)):
-            results.append([self._column_names[i], T_2_list[i],
+        for i in np.arange(0,len(self._col_names)):
+            results.append([self._col_names[i], T_2_list[i],
                             p_value_list[i],z_score_list[i]] )
         self._results = results
 
@@ -110,24 +105,19 @@ class Multivar(object):
 
 
     def summary(self):
-        if self._dof < 1:
+        if np.shape(self._X)[0] < np.shape(self._X)[1]:
             raise Exception("Number of waveforms < number of X columns")
         try:
             self._results
         except:
             raise Exception("Regression hasn't been fit yet.  run .fit()")
         else:
-            basis_info = [["Catalog Used:",str(self._basis_object.catalog_name)]]
-            basis_info.append(["Basis Type Used:",str(self._basis_object.decomposition)])
-            # collect table of fit metadata
-            basis_params = self._basis_object.get_params()
-            # convert dictionary to list
-            for key,value in basis_params.iteritems():
-                basis_info.append([key,value])
-            # print basis information first, then print pvalue information
-            print tabulate(basis_info,tablefmt='plain')
-            # print formula used for the design matrix
-            print self._formula
+
+            # TODO print catalog info
+            # TODO print design matrix info
+            # TODO print basis info
+
+            # print metadata first then print pvalues
             # make T^2 & pvalue table
             headers = self._results[0]
             table   = self._results[1:]

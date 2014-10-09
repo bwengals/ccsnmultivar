@@ -19,15 +19,13 @@ setup(
     author_email = 'w.j.engels@gmail.com',
     url = 'https://github.com/bwengals/CCSNMultivar',
     download_url = 'https://github.com/bwengals/CCSNMultivar/tarball/0.1',
-    keywords = ['regression', 'core-collapse', 'supernova'],
+    keywords = ['multivariate','regression', 'core-collapse', 'supernova'],
     classifiers = [],
     platforms = 'any',
     install_requires=[
        'numpy',
        'scipy',
        'tabulate',
-       'patsy',
-       'pandas',
        'scikit-learn',
     ]
 )

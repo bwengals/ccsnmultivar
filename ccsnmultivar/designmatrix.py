@@ -11,7 +11,6 @@ class DesignMatrix(object):
         # call functions to fit on instantiation
         self._load_paramfile()
         self.fit_transform()
-
         # print warning about degrees of freedom
         if np.shape(self._X)[0] <= np.shape(self._X)[1]:
             # if n < p
@@ -35,9 +34,10 @@ class DesignMatrix(object):
     def fit_transform(self):
         """
         Transform raw parameters to design matrix.
-        Returns: X_dict, wave_names
-            X_dict[column] = np.array(values)
-            wavenames in correct order to correspond to rows in np.array(values)
+        Returns:
+            - design matrix X
+            - names of X columns (in order)
+            - names of X rows (in order)
         """
         param_file = self.param_file
         formula = self.formula
@@ -72,13 +72,17 @@ class DesignMatrix(object):
         self._X = X_final
         self._X_col_names = col_names
         self._row_names   = name_list
+        return self._X, self._X_col_names, self._row_names
 
     def get_columnnames(self):
         return self._X_col_names
+
     def get_rownames(self):
         return self._row_names
+
     def get_X(self):
         return np.asarray(self._X)
+
     def get_formula(self):
         return self._formula
 
@@ -193,7 +197,7 @@ def _encode_design_matrix(formula_dict, inter_list, param_dict):
             raise Exception("Encoding name error")
         # update with each new encoding
         X.append(X_sub)
-        col_names.append(colnames_sub)
+        col_names.extend(colnames_sub)
     # now compute interaction designmatrices
     for interaction in inter_list:
         if len(interaction) >= 3:
@@ -231,13 +235,13 @@ def _encode_design_matrix(formula_dict, inter_list, param_dict):
             for i in np.arange(0,X1.shape[1]):
                 for j in np.arange(0,X2.shape[1]):
                     X_int.append(X1[:,i]*X2[:,j])
-                    col_names.append(names_1[i] + "*" + names_2[j])
+                    names_int.append(names_1[i] + "*" + names_2[j])
             X_int = np.array(X_int).T
         else:
             raise Exception("Error while evaluating meaning of interaction term")
         # now concatenate X_int and names_int for the next interaction term (if any)
         X.append(X_int)
-        col_names.append(names_int)
+        col_names.extend(names_int)
         # convert X from list of design matrices to design matrix
         X = np.concatenate(X,axis=1)
     return X, col_names

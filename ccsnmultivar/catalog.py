@@ -23,15 +23,16 @@ class Catalog(object):
        - set_name(name)
          give catalog name (default is the waveform file name)
     """
-
     def __init__(self, path_to_waveforms,catalog_name=None,transform_type='time'):
-        self._metadata       = _set_metadata(self)
-        self.Y_dict          = _load_waveforms(self, path_to_waveforms)
+        if catalog_name == None:
+            self._catalog_name = path_to_waveforms.split('/')[-1]
+        self._catalog_name   = catalog_name
+        self.Y_dict          = self._load_waveforms(path_to_waveforms)
         self.Y_transformed   = None
         self._Y_array        = None
-        self._catalog_name   = catalog_name
         self._n_waves        = None
         self._transform      = transform_type
+        self._metadata       = self._set_metadata()
 
     def _set_metadata(self):
         # make metadata dictionary
@@ -55,27 +56,27 @@ class Catalog(object):
         - the name of the waveform is the first column
         - subsequent columns are the waveform time samples
         """
-        cr = csv.reader(open(path_to_waveforms,"rb"))
-        wave_list = list(cr)
+        wave_list = list(csv.reader(open(path_to_waveforms,"rb")))
         # delete empty elements (if any)
-        wave_list2 = [x for x in wave_list if x != []]
-        wave_list = wave_list2
+        wave_list = [x for x in wave_list if x != []]
         # how many waveforms in catalog
-        self._n_waves = len(wave_list2)
-        # make dictionary
-        Y_dict = {}
-        for i in np.arange(0,self._n_waves):
-            Y_dict[wave_list[i][0]] = np.array(wave_list[i][1:]).astype('float')
-        # take out numeric part of Y_dict to normalize catalog
-        Y = np.vstack(Y_dict.values())
+        self._n_waves = len(wave_list)
+        # form wave_list into Y and wave_names
+        Y = np.empty((len(wave_list),np.shape(wave_list)[1]-1))
+        wave_names = []
+        for i in np.arange(0,len(wave_list)):
+            Y[i,:] = map(np.float, wave_list[i][1:])
+            wave_names.append(wave_list[i][0])
         # normalizing this way is *sort of* like normalizing each WF to have ssq = 1)
         self._Y_array = Y*(1./np.linalg.norm(Y,ord='fro'))*len(Y)
         # mean subtract
         self._Y_array = self._Y_array - np.mean(self._Y_array,0)
+        self._Y_array = Y
         warnings.warn("Catalog has mean waveform subtracted, this was not done in the paper!")
         # now, replace Y_dict waveforms with the normalized waveforms
+        Y_dict = {}
         for i in np.arange(0,self._n_waves):
-            Y_dict[wave_list[i][0]] = Y[i,:]
+            Y_dict[wave_names[i]] = self._Y_array[i,:]
         return Y_dict
 
     def get_catalog(self):
@@ -84,8 +85,11 @@ class Catalog(object):
         """
         return self.Y_dict
 
+    def get_transformed_Y(self):
+        return self.Y_transformed
+
     def get_params(self):
-        return self.metadata
+        return self._metadata
 
     def set_name(self,name):
         self._catalog_name = name
@@ -98,14 +102,17 @@ class Catalog(object):
         elif self._transform.lower() == 'spectrogram':
             self.Y_transformed = self._spectrogram(self)
         elif self._transform.lower() == 'amplitude-phase':
-            self.Y_transformed = self._amplitudephase(self):
+            self.Y_transformed = self._amplitudephase(self)
         else:
             raise ValueError("Bad input %s, transformation not defined" % typeof)
+        return self.Y_transformed
 
     def _fourier(self):
         print "not implemented yet"
+
     def _spectogram(self):
         print "not implemented yet"
+
     def _amplitudephase(self):
         print "not implemented yet" 
 

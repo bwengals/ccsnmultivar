@@ -1,6 +1,6 @@
 __version__ = '0.0.2'
 
-__all__ = ['basis','designmatrix','multivar','catalog']
+#__all__ = ['basis','designmatrix','multivar','catalog']
 
 # want to have users just do import ccsnmultivar as cm and have access to the following:
 
