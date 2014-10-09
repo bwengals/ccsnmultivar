@@ -1,64 +1,98 @@
 # design matrix class and methods
-import patsy as pt
-import pandas as pd
 import re
-import tabulate as tabulate
 import warnings
 import numpy as np
+import csv
 
 class DesignMatrix(object):
     def __init__(self,path_to_parameterfile,formula):
-        self._formula        = formula
-        self._parameter_df   = paramfile_to_df(path_to_parameterfile)
-        self._X_df           = formula_to_design_matrix(self._formula,self._parameter_df)
-        if len(self._X_df) < len(self._X_df.columns.tolist()):
+        self._path = path_to_parameterfile
+        self.formula = formula
+        # call functions to fit on instantiation
+        self._load_paramfile()
+        self.fit_transform()
+
+        # print warning about degrees of freedom
+        if np.shape(self._X)[0] <= np.shape(self._X)[1]:
             # if n < p
             warnings.warn("Number of columns > number of waveforms.  Hotellings T2 not defined")
-            # dof is degrees of freedom
-            self._X_dof = np.nan
-        else:
-            self._X_dof =  len(self._X_df) - len(self._X_df.columns.tolist())
 
-    def get_dof(self):
-        return self._X_dof
+    def _load_paramfile(self):
+        """
+        Loads up the parameter file using supplied directory from self._path
+
+        Parameter files must be:
+        - in .csv or .dat format
+        - first row is the header
+        - first column is a string giving the waveform name
+        - other columns are values of physical parameter for each waveform
+        """
+        # open from parameter path
+        param_list = list(csv.reader(open(self._path,"rb")))
+        # delete empty elements (if any)
+        self.param_file = [x for x in param_list if x != []]
+
+    def fit_transform(self):
+        """
+        Transform raw parameters to design matrix.
+        Returns: X_dict, wave_names
+            X_dict[column] = np.array(values)
+            wavenames in correct order to correspond to rows in np.array(values)
+        """
+        param_file = self.param_file
+        formula = self.formula
+        # make dict of [wavenames] = raw_params
+        name_list = []
+        param_list = []
+        # get header names for each param (names of param_list columns)
+        param_colnames = param_file[0][1:] # 0th element is "Name" or "Wavename"
+        # start from 1.  (row 0 is the header)
+        for i in np.arange(1, len(param_file)):
+            name_list.append(param_file[i][0])
+            param_list.append(param_file[i][1:])
+        # remove ' ' blank spaces from param_list
+        param_list = [[x.strip() for x in y] for y in param_list]
+        param_dict = {}
+        # double for loop. i loops through param_colnames, j loops thru param values per wave
+        for i in np.arange(0, len(param_colnames)):
+            param_dict[param_colnames[i]] = []
+            for j in np.arange(0,len(name_list)):
+                param_dict[param_colnames[i]].append(param_list[j][i])
+        # now we have param_dict, and name_list
+        # parse formula
+        formula_dict, inter_list = _parse_formula(formula)
+        # turn instructions and raw parameters into design matrix
+        X_final,col_names = _encode_design_matrix(formula_dict,inter_list,param_dict)
+        # add intercept term to X_final, add 'Intercept' to first in col_names
+        warnings.warn("Design Matrix includes Intercept Term")
+        col_names.insert(0,'Intercept')
+        X_final = np.concatenate([np.ones((len(name_list),1)),X_final],axis=1)
+
+        # put design matrix, row names, and column names, into class variables
+        self._X = X_final
+        self._X_col_names = col_names
+        self._row_names   = name_list
+
     def get_columnnames(self):
-        return self._X_df.columns.tolist()
+        return self._X_col_names
+    def get_rownames(self):
+        return self._row_names
     def get_X(self):
-        return np.asarray(self._X_df)
+        return np.asarray(self._X)
     def get_formula(self):
         return self._formula
 
-def paramfile_to_df(path_to_parameterfile):
-    """
-    Parameter files must be:
-    - in .csv or .dat format
-    - first row is the header
-    - first column is a string giving the waveform name
-    - other columns are values of physical parameter for each waveform
-    """
-    # TODO make sure there are no spaces in header names (or anywhere)
-    param_df = pd.read_csv(path_to_parameterfile)
-    param_df.dropna(how="all",inplace=True)
-    return param_df
 
-def formula_to_design_matrix(formula,data_frame):
-    formula_dict,inter_list = parse_formula(formula)
-    Xdf = encode_design_matrix(formula_dict,inter_list,data_frame)
-    return Xdf
-
-
-def parse_formula(formula):
+def _parse_formula(formula):
     """
     Parse formula into a dictionary
     formula_dict[variable_name] = [encoding, dropped_name]
     Parse interactions into a list
-    inter_list = [A:B, A:C, A:B:C]
+    inter_list = [[A,B], [A,C], [A,B,C]]
 
     formula = "A + beta + A*beta | Dev(A,drop=1), Poly(beta,degree=3)"
     """
     #TODO: DEAL WITH BSPLINE HAS MULTIPLE ARGUEMENTS (NOT JUST ONE)
-    #TODO: error checking (interaction A*A),
-    #TODO: deal with situation when no interaction terms are passed
 
     # break formula apart from encoding instructions
     formula,instr = formula.replace(' ','').split('|')
@@ -115,122 +149,164 @@ def parse_formula(formula):
             formula_dict[var_name] = ["Poly",degree]
         else:
             raise Exception("Unknown Encoding")
-    print formula_dict, inter_list
     return formula_dict,inter_list
 
 
 
-def encode_design_matrix(formula_dict, inter_list, data_frame):
+def _encode_design_matrix(formula_dict, inter_list, param_dict):
     """
     1. Deviation encoding
     2. Dummy encoding
-    4. Chebyshev Polynomial encoding    5. Spline
-    6. Interaction between any of the above two types
+    4. Chebyshev Polynomial encoding
+    6. Interaction between any of the above types
     """
-    # TODO errors when there is no interaction in the formula
-
-    # first make intercept term
-    print formula_dict.keys()
-    Xdf_dict = {}
+    X = []
+    col_names = []
+    X_dict = {}
+    Xcol_dict = {}
+    # first, replace param_dict[key] = values, with param_dict[key] = dmatrix
     for key in formula_dict:
         encoding,arg = formula_dict[key]
         if 'Dev' in encoding:
             # make deviation encoded design matrix
             drop_name = arg
-            X,column_names = dev_encode(data_frame,drop_name,key)
-            # convert X and column names to data frame
-            Xdf_dict[key] = pd.DataFrame(X,columns=column_names)
+            # encode
+            X_sub,colnames_sub = _dev_encode(param_dict,drop_name,key)
+            # additionally, store in dictionary for use by interactions
+            X_dict[key] = X_sub
+            Xcol_dict[key] = colnames_sub
         elif 'Dum' in encoding:
             # make dummy variable encoding design mat
             ref_name = arg
-            X,column_names = dum_encode(data_frame,ref_name,key)
-            # convert X and column names to data frame
-            Xdf_dict[key] = pd.DataFrame(X,columns=column_names)
+            X_sub,colnames_sub = _dum_encode(param_dict,ref_name,key)
+            # additionally, store in dictionary for use by interactions
+            X_dict[key] = X_sub
+            Xcol_dict[key] = colnames_sub
         elif 'Poly' in encoding:
             # make polynomial encoding design mat
             degree = arg
-            X,column_names = poly_encode(data_frame,degree,key)
-            # convert X and column names to data frame
-            Xdf_dict[key] = pd.DataFrame(X,columns=column_names)
+            X_sub,colnames_sub = _poly_encode(param_dict,degree,key)
+            # additionally, store in dictionary for use by interactions
+            X_dict[key] = X_sub
+            Xcol_dict[key] = colnames_sub
         else:
             raise Exception("Encoding name error")
-
-    # now compute interaction dataframes
-    list_of_new_inter_dfs = []
+        # update with each new encoding
+        X.append(X_sub)
+        col_names.append(colnames_sub)
+    # now compute interaction designmatrices
     for interaction in inter_list:
-        Xdf_list = []
-        for variable in interaction:
-            Xdf_list.append(Xdf_dict[variable])
-        # now Xdf_list is a list where each element is a df of the design 
-        #    matrix involved in the interaction
-        # TODO: THIS ONLY WORKS WITH TWO-WAY INTERACTIONS!
-        warnings.warn("Warning: Only able to do two-way interactions!")
-        new_inter_dict = {}
-        for i in np.arange(0,len(Xdf_list[0].columns)):
-            for j in np.arange(0,len(Xdf_list[1].columns)):
-                inter_name_i = Xdf_list[0].columns.tolist()[i]
-                inter_name_j = Xdf_list[1].columns.tolist()[j]
-                inter_nameij = inter_name_i + "*" + inter_name_j
-                column_i     = np.array(Xdf_list[0].iloc[:,i])
-                column_j     = np.array(Xdf_list[1].iloc[:,j])
-                new_column   = column_i*column_j
-                new_inter_dict[inter_nameij] = new_column
-        list_of_new_inter_dfs.append(pd.DataFrame(new_inter_dict))
+        if len(interaction) >= 3:
+            raise Exception("Doesn't allow 4-way or higher interaction terms")
+        elif len(interaction) == 3:
+            # there are three interaction terms (A*B*C)
+            # pull them out into X_i and names_i matrices and list of strings
+            X1 = X_dict[interaction[0]]
+            names_1 = Xcol_dict[interaction[0]]
+            X2 = X_dict[interaction[1]]
+            names_2 = Xcol_dict[interaction[1]]
+            X3 = X_dict[interaction[2]]
+            names_3 = Xcol_dict[interaction[2]]
 
-    # concatenate together the list of df dictionaries, and interactiondf dictionaries
-    Xdf_int = pd.concat(list_of_new_inter_dfs,axis=1)
-    Xdf     = pd.concat(Xdf_list, axis=1)
-    Xdf     = pd.concat([Xdf,Xdf_int],axis=1)
-    # add intercept to df
-    X_intercept = pd.DataFrame(np.ones(len(Xdf)), columns = ['Intercept'])
-    Xdf     = pd.concat([X_intercept, Xdf],axis=1)
-    return Xdf
+            X_int = []
+            names_int = []
+            for i in np.arange(0,X1.shape[1]):
+                for j in np.arange(0,X2.shape[1]):
+                    for k in np.arange(0,X3.shape[1]):
+                        X_int.append(X1[:,i]*X2[:,j]*X3[:,k])
+                        col_names.append(names_1[i] + "*" + names_2[j] + "*" + names_3[k])
+            # make X_int from lists to np array
+            X_int = np.array(X_int).T
 
+        elif len(interaction) == 2:
+            # there are two interaction terms (A*B)
+            # pull them out into X_i and names_i matrices and list of strings
+            X1 = X_dict[interaction[0]]
+            names_1 = Xcol_dict[interaction[0]]
+            X2 = X_dict[interaction[1]]
+            names_2 = Xcol_dict[interaction[1]]
 
-
-
-def dev_encode(data_frame, drop_name, variable_name):
-    patsy_formula = "C(" + variable_name + ", Sum(omit = " + str(drop_name) + "))"
-    ptmat = pt.dmatrix(patsy_formula,data_frame)
-    X = np.asarray(ptmat)
-    # remove intercept
-    X = X[:,1:]
-
-    # make column names
-    patsy_names = ptmat.design_info.column_names[1:]
-    col_names = []
-    for name in patsy_names:
-        # in this encoding setting, the variable name is 4th char from end
-        var_name = name[-4]
-        col_names.append("["+variable_name + var_name + " - " + "mu" + "]")
-    return X, col_names
-
-def dum_encode(data_frame, ref_name, variable_name):
-    patsy_formula = "C(" + variable_name + ", Treatment(reference = " + str(ref_name) + "))"
-    ptmat = pt.dmatrix(patsy_formula,data_frame)
-    X = np.asarray(ptmat)
-    # remove intercept
-    X = X[:,1:]
-
-    # make column names
-    patsy_names = ptmat.design_info.column_names[1:]
-    col_names = []
-    var_type = variable_name
-    ref_val  = ref_name
-    for name in patsy_names:
-        # in this encoding setting, the comparison name is 4th char from end
-        var_val = name[-4]
-        col_names.append("["+var_type+var_val + " - " + var_type+ref_val+"]")
+            X_int = []
+            names_int = []
+            for i in np.arange(0,X1.shape[1]):
+                for j in np.arange(0,X2.shape[1]):
+                    X_int.append(X1[:,i]*X2[:,j])
+                    col_names.append(names_1[i] + "*" + names_2[j])
+            X_int = np.array(X_int).T
+        else:
+            raise Exception("Error while evaluating meaning of interaction term")
+        # now concatenate X_int and names_int for the next interaction term (if any)
+        X.append(X_int)
+        col_names.append(names_int)
+        # convert X from list of design matrices to design matrix
+        X = np.concatenate(X,axis=1)
     return X, col_names
 
 
+def _dev_encode(param_dict,drop_name,param_name):
+    # param_dict[col_name] = np.array(wave_values)
+    values = param_dict[param_name]
+    # treat as string, map each unique value to an integer
+    unique_values = []
+    [unique_values.append(i) for i in values if not unique_values.count(i)]
+    # warning if number of unique values is large compared to number of waveforms
+    if len(unique_values) > 0.5*len(values):
+        warning.warn("Many unique values in parameter %s for a Deviation encoding" & param_name)
+    # make deviation encoding instruction matrix
+    I = np.eye(len(unique_values))
+    # remove column of I for drop_name
+    drop_idx = unique_values.index(drop_name)
+    I = np.delete(I,drop_idx,1)
+    # make row of I for drop_name index
+    I[drop_idx,:] = -1
+    # make names out of values
+    col_names = []
+    for i in np.arange(0,len(unique_values)):
+        col_names.append(param_name+":["+unique_values[i]+" - "+"mu"+"]")
+    # remove column name for drop_name
+    col_names.remove(param_name + ":[" + drop_name + " - " + "mu" + "]")
+    # use instruction matrix I to map parameter values to design matrix
+    X = np.empty((len(values),len(col_names)))
+    for i in np.arange(0,len(values)):
+        idx = unique_values.index(values[i])
+        X[i,:] = I[idx,:]
+    return X, col_names
+
+
+def _dum_encode(param_dict,drop_name,param_name):
+    # param_dict[col_name] = np.array(wave_values)
+    values = param_dict[param_name]
+    # treat as string, map each unique value to an integer
+    unique_values = []
+    [unique_values.append(i) for i in values if not unique_values.count(i)]
+    # warning if number of unique values is large compared to number of waveforms
+    if len(unique_values) > 0.5*len(values):
+        warning.warn("Many unique values in parameter %s for a Deviation encoding" & param_name)
+    # make deviation encoding instruction matrix
+    I = np.eye(len(unique_values))
+    # remove column of I for drop_name
+    drop_idx = unique_values.index(drop_name)
+    I = np.delete(I,drop_idx,1)
+    # make names out of values
+    col_names = []
+    for i in np.arange(0,len(unique_values)):
+        col_names.append(param_name+":["+unique_values[i]+" - " + drop_name + "]")
+    # remove column name for drop_name
+    col_names.remove(param_name + ":[" + drop_name + " - " + drop_name + "]")
+    # use instruction matrix I to map parameter values to design matrix
+    X = np.empty((len(values),len(col_names)))
+    for i in np.arange(0,len(values)):
+        idx = unique_values.index(values[i])
+        X[i,:] = I[idx,:]
+    return X, col_names
 
 
 
-
-def poly_encode(data_frame,degree,variable_name):
-    x = np.array(data_frame[variable_name])
+def _poly_encode(param_dict,degree,param_name):
+    x = np.array(map(float,param_dict[param_name]))
     degree = int(degree)
+    if len(np.unique(x)) < 5:
+        warning.warn("Not many unique values of parameter %s for Poly encoding" & param_name)
     # generate chebyshev polynomials
     n = degree
     m = len(x)
@@ -245,36 +321,11 @@ def poly_encode(data_frame,degree,variable_name):
             X[:,k] = 2.*z*X[:,k-1] - X[:,k-2]
     # remove first column of A (never keep intercept)
     X = X[:,1:]
-
-    ## TODO I OVERWROTE CHEBYS WITH REGULARS
-    #for i in np.arange(0,degree):
-    #    X[:,i] = np.power(x,i+1)
-
-
-
     # generate names for each column
     col_names = []
     for i in np.arange(0,degree):
-        col_names.append(variable_name + "^" + str(i+1))
+        col_names.append(param_name + "^" + str(i+1))
     return X, col_names
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def _bs_encode(param_dict,bsplineparameters, param_name):
+    print "not implemented yet"

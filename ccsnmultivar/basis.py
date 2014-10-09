@@ -1,5 +1,5 @@
 # basis classes for ccsnmultivar
-from sklearn.decomposition import KernelPCA
+from sklearn.decomposition import KernelPCA, FastICA
 import csv as csv
 import numpy as np
 
@@ -88,6 +88,7 @@ class KPCA(object):
                  alpha = 0.1,
                  gamma = 1.0,
                  degree = 2):
+
         self._decomposition  = 'Kernel PCA'
         self._num_components = num_components
         self._catalog_name   = catalog_name
@@ -98,24 +99,23 @@ class KPCA(object):
                          n_components=num_components,
                          fit_inverse_transform=True,
                          gamma = self._gamma)
-        self._norm_constant = 1e20
 
     def fit(self,waveforms):
         # TODO make sure there are more columns than rows (transpose if not)
         # normalize waveforms
-        self._waveforms = waveforms*self._norm_constant
+        self._waveforms = waveforms
         self._KPCA.fit(self._waveforms)
 
     def fit_transform(self,waveforms):
         # TODO make sure there are more columns than rows (transpose if not)
         # normalize waveforms
-        self._waveforms = waveforms*self._norm_constant
+        self._waveforms = waveforms
         self._A = self._KPCA.fit_transform(self._waveforms)
         return self._A
 
     def inverse_transform(self,A):
         # convert basis back to waveforms using fit
-        new_waveforms = self._KPCA.inverse_transform(A)*(1./self._norm_constant)
+        new_waveforms = self._KPCA.inverse_transform(A)
         return new_waveforms
 
     def get_params(self):
@@ -124,23 +124,82 @@ class KPCA(object):
         params['num_components'] = params.pop('n_components')
         return params
 
-def load_waveforms(path_to_waveforms):
-    """
-    Can load in either parameter file or waveforms
 
-    Parameter files must be:
-    - in .csv or .dat format
-    - first row is the header
-    - each column is a value of physical parameter
-
-     Waveform matrices must be:
-    - each row is a waveform, corresponding to the same row in parameter file
-    - each waveform is preprocessed
-        -- aligned to core bounce
-        -- all have same sampling frequencies
-        -- all have same number of time samples
+class ICA(object):
     """
-    cr = csv.reader(open(path_to_waveforms,"rb"))
-    P = list(cr)
-    Y = np.array(P).astype('float')
-    return Y
+    Wrapper for sklearn package.  Performs fast ICA (Independent Component Analysis)
+
+    ICA has 4 methods:
+       - fit(waveforms)
+       update class instance with ICA fit
+
+       - fit_transform()
+       do what fit() does, but additionally return the projection onto ICA space
+
+       - inverse_transform(A)
+       inverses the decomposition, returns waveforms for an input A, using Z
+
+       - get_params()
+       returns metadata used for fits.
+    """
+    def __init__(self, num_components=10,
+                 catalog_name='unknown',
+                 whiten=True,
+                 fun = 'logcosh',
+                 fun_args = None,
+                 max_iter = 400,
+                 tol = .00001,
+                 w_init = None,
+                 random_state = None,
+                 algorithm = 'parallel'):
+
+        self._decomposition  = 'Fast ICA'
+        self._num_components = num_components
+        self._catalog_name   = catalog_name
+        self._whiten         = whiten
+        self._fun            = fun
+        self._fun_args       = fun_args
+        self._max_iter       = max_iter
+        self._tol            = tol
+        self._w_init         = w_init
+        self._random_state   = random_state
+        self._algorithm      = algorithm
+
+        self._ICA = FastICA(n_components=self._num_components,
+                             whiten       = self._whiten,
+                             fun          = self._fun,
+                             fun_args     = self._fun_args,
+                             max_iter     = self._max_iter,
+                             tol          = self._tol,
+                             w_init       = self._w_init,
+                             random_state = self._random_state,
+                             algorithm    = self._algorithm)
+
+
+    def fit(self,waveforms):
+        # TODO make sure there are more columns than rows (transpose if not)
+        # normalize waveforms
+        self._waveforms = waveforms
+        self._ICA.fit(self._waveforms)
+
+    def fit_transform(self,waveforms):
+        # TODO make sure there are more columns than rows (transpose if not)
+        # normalize waveforms
+        self._waveforms = waveforms
+        self._A = self._ICA.fit_transform(self._waveforms)
+        return self._A
+
+    def inverse_transform(self,A):
+        # convert basis back to waveforms using fit
+        new_waveforms = self._ICA.inverse_transform(A)
+        return new_waveforms
+
+    def get_params(self):
+        # TODO know what catalog was used! (include waveform metadata)
+        params = self._ICA.get_params()
+        params['num_components'] = params.pop('n_components')
+        return params
+
+
+
+

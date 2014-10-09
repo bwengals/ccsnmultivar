@@ -1,29 +1,28 @@
-# hidden imports of dependency modules
 import numpy as np
-import pandas as pd
-import patsy  as pt
 import scipy  as sp
 import scipy.stats as stats
 import re as re
-import warnings as warnings
 import csv as csv
 from tabulate import tabulate
 
 # TODO
-#waveform class.  each waveform is named (matching design matrix so no screwups can happen)
-#   each waveform set can be given metadata (what catalog)
-#   different transforms: fft, amp/phase, spectrograms
 #detectorsetup class.  instead of simulating waveforms in one det, expand to det network
 
 class Multivar(object):
     """
     When multivar objects are instantiated, the waveforms are loaded and 
     """
-    def __init__(self, waveforms, designmatrix_object, basis_object):
-        self._Y             = waveforms
+    def __init__(self, catalog_object, designmatrix_object, basis_object):
+
+        self._col_names     = self.designmatrix_object.get_columnnames()
+        self._row_names     = self.designmatrix_object.get_rownames()
+
+
+        self._Y, self._X    = match_names(self, catalog_object, designmatrix_object)
+
+        # fit basis object
         self._A             = basis_object.fit_transform(self._Y)
-        self._X             = designmatrix_object.get_X()
-        self._detector      = 'H1'
+
         # other useful parameters
         self._formula       = designmatrix_object.get_formula()
         self._column_names  = designmatrix_object.get_columnnames()
@@ -33,6 +32,24 @@ class Multivar(object):
         # give basis object, and desigm matrix object into DM class self
         self._basis_object = basis_object
         self._designmatrix_object = designmatrix_object
+        self._detector      = 'H1'
+
+    def _match_names(self,catalog_object, designmatrix_object):
+        #   1. get list of Y_names (row 0 first, row -1 last)
+        #   2. make corresponding np.array(Y)
+        Y_dict = catalog_object.get_catalog()
+        Y_rows = Y_dict.keys()
+        Y      = np.vstack(Y_dict.values())
+        #   1. get list of X_names (row 0 first, row -1 last) TODO (not using pandas)
+        #   2. make corresponding np.array(X)
+        X_dict,wavenames = designmatrix_object.get_X()
+        row_names = 
+        row_names = 
+
+
+        # get pandas dataframe design matrix, convert to dict {wavenames, list(rows)}
+        X_df = designmatrix_object.get_X()
+        self.X_dict = X_df.to_dict('list')
 
     def fit(self, type_of_fit):
         # TODO: if waveforms complex valued, fit freq domain, otherwise do time domain
@@ -81,7 +98,7 @@ class Multivar(object):
             T_2_list.append(T_2)
         results = [['Comparison','Hotellings T^2', "p-value", "Sigma"]]
         for i in np.arange(0,len(self._column_names)):
-            results.append([self._column_names[i], T_2_list[i], 
+            results.append([self._column_names[i], T_2_list[i],
                             p_value_list[i],z_score_list[i]] )
         self._results = results
 
@@ -94,12 +111,11 @@ class Multivar(object):
 
     def summary(self):
         if self._dof < 1:
-            raise Exception("Number of waveforms < number of X columns, Hotellings T2 undefined")
+            raise Exception("Number of waveforms < number of X columns")
         try:
             self._results
         except:
             raise Exception("Regression hasn't been fit yet.  run .fit()")
-            
         else:
             basis_info = [["Catalog Used:",str(self._basis_object.catalog_name)]]
             basis_info.append(["Basis Type Used:",str(self._basis_object.decomposition)])
@@ -110,21 +126,21 @@ class Multivar(object):
                 basis_info.append([key,value])
             # print basis information first, then print pvalue information
             print tabulate(basis_info,tablefmt='plain')
-
+            # print formula used for the design matrix
+            print self._formula
             # make T^2 & pvalue table
             headers = self._results[0]
             table   = self._results[1:]
             print tabulate(table, headers, tablefmt="rst")
             X = np.matrix(self._X)
-            # print null Hypothesis
-            print "Null Hypothesis: B_{row i} = B_{row i+1} = ... = B_{row N} = 0"
-            print "Probablitity of observing our results, given the Null is true = p-value"
             # print condition number of X.T*X
             cond_num = np.linalg.cond(X.T*X)
             print "Condition Number of X^T*X: " + str(cond_num)
             print "Sum-of-Squares of Fit Residual: %s" % self._sumofsquares
 
     def predict(self,*arg):
+        # TODO Rewrite this.  this should call a DesignMatrix object, not do its work
+        #      needs a "combine_two_catalogs" function
         if len(arg) == 0:
             # then predict self._Y
             Xpred = self._X
@@ -165,6 +181,18 @@ class Multivar(object):
             Z = np.matrix(self._Z)
             Y_new = np.array(Xpred*Bhat*Z.T)
         self._Y_predicted = Y_new
+
+
+    def combine_two_catalogs(self):
+        """
+        Combines two Catalog objects, and two DesignMatrix objects
+            Perhaps call 'combine_two_catalogs' and 'combine_two_designmatrices'
+            functions
+        """
+        print "not implemented yet"
+
+
+
 
 
     def load_detector(self, detector='H1'):
