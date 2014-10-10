@@ -51,8 +51,9 @@ class PCA(object):
 
     def get_params(self):
         # return a dictionary with the pca instance metadata
-        # TODO know what catalog was used! (include waveform metadata)
-        params = {i: self.__dict__.get(i,None) for i in ('num_components')}
+        params = {}
+        params['Decomposition'] = self._decomposition
+        params['num_components'] = self._num_components
         return params
 
     def _do_pca(self):
@@ -122,6 +123,7 @@ class KPCA(object):
         # TODO know what catalog was used! (include waveform metadata)
         params = self._KPCA.get_params()
         params['num_components'] = params.pop('n_components')
+        params['Decompositon'] = self._decomposition
         return params
 
 
@@ -198,6 +200,7 @@ class ICA(object):
         # TODO know what catalog was used! (include waveform metadata)
         params = self._ICA.get_params()
         params['num_components'] = params.pop('n_components')
+        params['Decompositon'] = self._decomposition
         return params
 
 

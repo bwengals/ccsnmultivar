@@ -30,9 +30,8 @@ class Catalog(object):
         self.Y_dict          = self._load_waveforms(path_to_waveforms)
         self.Y_transformed   = None
         self._Y_array        = None
-        self._n_waves        = None
         self._transform      = transform_type
-        self._metadata       = self._set_metadata()
+        self._set_metadata()
 
     def _set_metadata(self):
         # make metadata dictionary
@@ -43,6 +42,8 @@ class Catalog(object):
             metadata['Catalog Name']    = self._catalog_name
         metadata['Number of Waveforms'] = self._n_waves
         metadata['Waveform Domain']     = self._transform
+        print metadata
+        self._metadata                  = metadata
 
     def _load_waveforms(self,path_to_waveforms):
         """
@@ -71,7 +72,6 @@ class Catalog(object):
         self._Y_array = Y*(1./np.linalg.norm(Y,ord='fro'))*len(Y)
         # mean subtract
         self._Y_array = self._Y_array - np.mean(self._Y_array,0)
-        self._Y_array = Y
         warnings.warn("Catalog has mean waveform subtracted, this was not done in the paper!")
         # now, replace Y_dict waveforms with the normalized waveforms
         Y_dict = {}

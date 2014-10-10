@@ -7,7 +7,7 @@ import csv
 class DesignMatrix(object):
     def __init__(self,path_to_parameterfile,formula):
         self._path = path_to_parameterfile
-        self.formula = formula
+        self._formula = formula
         # call functions to fit on instantiation
         self._load_paramfile()
         self.fit_transform()
@@ -40,7 +40,7 @@ class DesignMatrix(object):
             - names of X rows (in order)
         """
         param_file = self.param_file
-        formula = self.formula
+        formula = self._formula
         # make dict of [wavenames] = raw_params
         name_list = []
         param_list = []
@@ -65,6 +65,7 @@ class DesignMatrix(object):
         X_final,col_names = _encode_design_matrix(formula_dict,inter_list,param_dict)
         # add intercept term to X_final, add 'Intercept' to first in col_names
         warnings.warn("Design Matrix includes Intercept Term")
+        X_final = np.squeeze(X_final)
         col_names.insert(0,'Intercept')
         X_final = np.concatenate([np.ones((len(name_list),1)),X_final],axis=1)
 
@@ -242,8 +243,7 @@ def _encode_design_matrix(formula_dict, inter_list, param_dict):
         # now concatenate X_int and names_int for the next interaction term (if any)
         X.append(X_int)
         col_names.extend(names_int)
-        # convert X from list of design matrices to design matrix
-        X = np.concatenate(X,axis=1)
+    X = np.concatenate(X,axis=1)
     return X, col_names
 
 
@@ -262,7 +262,7 @@ def _dev_encode(param_dict,drop_name,param_name):
     drop_idx = unique_values.index(drop_name)
     I = np.delete(I,drop_idx,1)
     # make row of I for drop_name index
-    I[drop_idx,:] = -1
+    I[drop_idx,:] = -1.
     # make names out of values
     col_names = []
     for i in np.arange(0,len(unique_values)):
@@ -315,7 +315,7 @@ def _poly_encode(param_dict,degree,param_name):
     n = degree
     m = len(x)
     # generate the z variable as a mapping of your x data into [-1,1]
-    z = ((x - .99*min(x))-(.99*max(x)-x))/(.99*max(x) - .99*min(x))
+    z = ((x - min(x))-(max(x)-x))/(max(x) - min(x))
     X = np.empty([m,n+1])
     X[:,0] = np.ones([m,])
     if n >= 1:

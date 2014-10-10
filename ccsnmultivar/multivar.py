@@ -71,15 +71,14 @@ class Multivar(object):
         Sigma_Z = R.T*R*(1./df)
         self._Bhat = np.array(Bhat)
         self._sumofsquares = np.sum(np.sum(np.square(R)))
-
         columns = np.arange(0,np.shape(A)[1])
         T_2_list = []
         p_value_list = []
         z_score_list = []
-        for row in range(0,p):
-            Bstar       = Bhat[row,columns]
+        for i in np.arange(0,p):
+            Bstar       = Bhat[i,columns]
             pstar,lstar = np.shape(Bstar)
-            cx          = float(Cx[row,row])
+            cx          = float(Cx[i,i])
             Einv        = np.linalg.pinv(Sigma_Z)
             Zs          = Bstar/np.sqrt(cx)
             T_2         = float(((df - lstar + 1.)/(df*lstar))*Zs*Einv*Zs.T)
@@ -113,10 +112,10 @@ class Multivar(object):
             raise Exception("Regression hasn't been fit yet.  run .fit()")
         else:
 
-            # TODO print catalog info
-            # TODO print design matrix info
-            # TODO print basis info
-
+            # print catalog info
+            cat_table = self._catalog_object.get_params().items()
+            bas_table = self._basis_object.get_params().items()
+            print tabulate(cat_table+bas_table,tablefmt='plain')
             # print metadata first then print pvalues
             # make T^2 & pvalue table
             headers = self._results[0]
@@ -125,8 +124,9 @@ class Multivar(object):
             X = np.matrix(self._X)
             # print condition number of X.T*X
             cond_num = np.linalg.cond(X.T*X)
+            print "Formula Used: %s" % self._designmatrix_object._formula
             print "Condition Number of X^T*X: " + str(cond_num)
-            print "Sum-of-Squares of Fit Residual: %s" % self._sumofsquares
+            print "Residual Sum-of-Squares in Component Space: %s" % self._sumofsquares
 
     def predict(self,*arg):
         # TODO Rewrite this.  this should call a DesignMatrix object, not do its work
