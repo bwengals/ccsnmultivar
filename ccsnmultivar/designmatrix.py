@@ -59,10 +59,19 @@ class DesignMatrix(object):
             for j in np.arange(0,len(name_list)):
                 param_dict[param_colnames[i]].append(param_list[j][i])
         # now we have param_dict, and name_list
+        self._param_dict = param_dict
+        self._name_list = name_list
         # parse formula
         formula_dict, inter_list = _parse_formula(formula)
+        # Multivar.predict() needs inter_list
+        self._inter_list = inter_list
         # turn instructions and raw parameters into design matrix
-        X_final,col_names = _encode_design_matrix(formula_dict,inter_list,param_dict)
+        X_final,col_names, encoder_dict = _encode_design_matrix(formula_dict, \
+                                            inter_list,param_dict)
+
+        # save encoder_dict as a class attribute
+        self._encoder_dict = encoder_dict
+
         # add intercept term to X_final, add 'Intercept' to first in col_names
         warnings.warn("Design Matrix includes Intercept Term")
         X_final = np.squeeze(X_final)
@@ -169,6 +178,7 @@ def _encode_design_matrix(formula_dict, inter_list, param_dict):
     col_names = []
     X_dict = {}
     Xcol_dict = {}
+    encoder_dict = {}
     # first, replace param_dict[key] = values, with param_dict[key] = dmatrix
     for key in formula_dict:
         encoding,arg = formula_dict[key]
@@ -176,24 +186,30 @@ def _encode_design_matrix(formula_dict, inter_list, param_dict):
             # make deviation encoded design matrix
             drop_name = arg
             # encode
-            X_sub,colnames_sub = _dev_encode(param_dict,drop_name,key)
+            X_sub,colnames_sub,deviation_encoder = _dev_encode(param_dict,drop_name,key)
             # additionally, store in dictionary for use by interactions
             X_dict[key] = X_sub
             Xcol_dict[key] = colnames_sub
+            # store dictionary of encoder functions to keep for prediction
+            encoder_dict[key] = deviation_encoder
         elif 'Dum' in encoding:
             # make dummy variable encoding design mat
             ref_name = arg
-            X_sub,colnames_sub = _dum_encode(param_dict,ref_name,key)
+            X_sub,colnames_sub,dummy_encoder = _dum_encode(param_dict,ref_name,key)
             # additionally, store in dictionary for use by interactions
             X_dict[key] = X_sub
             Xcol_dict[key] = colnames_sub
+            # store dictionary of encoder functions to keep for prediction
+            encoder_dict[key] = dummy_encoder
         elif 'Poly' in encoding:
             # make polynomial encoding design mat
             degree = arg
-            X_sub,colnames_sub = _poly_encode(param_dict,degree,key)
+            X_sub,colnames_sub,polynomial_encoder = _poly_encode(param_dict,degree,key)
             # additionally, store in dictionary for use by interactions
             X_dict[key] = X_sub
             Xcol_dict[key] = colnames_sub
+            # store dictionary of encoder functions to keep for prediction
+            encoder_dict[key] = polynomial_encoder
         else:
             raise Exception("Encoding name error")
         # update with each new encoding
@@ -204,50 +220,90 @@ def _encode_design_matrix(formula_dict, inter_list, param_dict):
         if len(interaction) >= 3:
             raise Exception("Doesn't allow 4-way or higher interaction terms")
         elif len(interaction) == 3:
-            # there are three interaction terms (A*B*C)
-            # pull them out into X_i and names_i matrices and list of strings
-            X1 = X_dict[interaction[0]]
-            names_1 = Xcol_dict[interaction[0]]
-            X2 = X_dict[interaction[1]]
-            names_2 = Xcol_dict[interaction[1]]
-            X3 = X_dict[interaction[2]]
-            names_3 = Xcol_dict[interaction[2]]
 
-            X_int = []
-            names_int = []
-            for i in np.arange(0,X1.shape[1]):
-                for j in np.arange(0,X2.shape[1]):
-                    for k in np.arange(0,X3.shape[1]):
-                        X_int.append(X1[:,i]*X2[:,j]*X3[:,k])
-                        col_names.append(names_1[i] + "*" + names_2[j] + "*" + names_3[k])
-            # make X_int from lists to np array
-            X_int = np.array(X_int).T
+            param_name1 = interaction[0]
+            param_name2 = interaction[1]
+            param_name3 = interaction[2]
+            col_names1 = Xcol_dict[param_name1]
+            col_names2 = Xcol_dict[param_name2]
+            col_names3 = Xcol_dict[param_name3]
+
+            # make 3-way encoder function
+            def threeway_encoder(param_name1,param_name2,param_name3, \
+                                 col_names1, col_names2, col_names3, X_dict):
+                """
+                needs the three names of the parameters to be encoded, as well as
+                a dictionary containing the already encoded single parameter 
+                design matrices, keyed by name
+                """
+                X1 = X_dict[param_name1]
+                X2 = X_dict[param_name2]
+                X3 = X_dict[param_name3]
+
+                X_int = []
+                names_int = []
+                for i in np.arange(0,X1.shape[1]):
+                    for j in np.arange(0,X2.shape[1]):
+                        for k in np.arange(0,X3.shape[1]):
+                            X_int.append(X1[:,i]*X2[:,j]*X3[:,k])
+                            col_names.append(col_names1[i] + "*" + \
+                                             col_names2[j] + "*" + col_names3[k])
+                # make X_int from lists to np array
+                X_int = np.array(X_int).T
+                return X_int, col_names
+
+            # use 3way_encoder to compute interaction design matrix
+            X_int, names_int = threeway_encoder(param_name1, \
+                                                param_name2, param_name3, \
+                                                col_names1, col_names2, col_names3, \
+                                                X_dict)
+            encoder_dict['threeway'] = threeway_encoder
 
         elif len(interaction) == 2:
             # there are two interaction terms (A*B)
-            # pull them out into X_i and names_i matrices and list of strings
-            X1 = X_dict[interaction[0]]
-            names_1 = Xcol_dict[interaction[0]]
-            X2 = X_dict[interaction[1]]
-            names_2 = Xcol_dict[interaction[1]]
 
-            X_int = []
-            names_int = []
-            for i in np.arange(0,X1.shape[1]):
-                for j in np.arange(0,X2.shape[1]):
-                    X_int.append(X1[:,i]*X2[:,j])
-                    names_int.append(names_1[i] + "*" + names_2[j])
-            X_int = np.array(X_int).T
+            param_name1 = interaction[0]
+            param_name2 = interaction[1]
+            col_names1  = Xcol_dict[param_name1]
+            col_names2  = Xcol_dict[param_name2]
+
+            # make twoway_encoder function
+            def twoway_encoder(param_name1,param_name2, col_names1, col_names2, X_dict):
+                X1 = X_dict[param_name1]
+                X2 = X_dict[param_name2]
+
+                X_int = []
+                names_int = []
+                for i in np.arange(0,X1.shape[1]):
+                    for j in np.arange(0,X2.shape[1]):
+                        X_int.append(X1[:,i]*X2[:,j])
+                        names_int.append(col_names1[i] + "*" + col_names2[j])
+                X_int = np.array(X_int).T
+                return X_int, col_names
+
+            # use 2-way encoder to compute interaction design matrix
+            X_int, names_int = twoway_encoder(param_name1, param_name2,\
+                                              col_names1, col_names2, X_dict)
+
+            encoder_dict['twoway'] = twoway_encoder
         else:
             raise Exception("Error while evaluating meaning of interaction term")
         # now concatenate X_int and names_int for the next interaction term (if any)
         X.append(X_int)
         col_names.extend(names_int)
     X = np.concatenate(X,axis=1)
-    return X, col_names
+    return X, col_names, encoder_dict
 
 
 def _dev_encode(param_dict,drop_name,param_name):
+    """
+    _dev_encode takes the parameter dictionary in, as well as the name of parameter
+    to drop from design matrix, and the string name of the parameter
+
+    it returns the encoded design matrix, list of column name strings, and
+    and encoder function to encode new values of param properly
+    """
+
     # param_dict[col_name] = np.array(wave_values)
     values = param_dict[param_name]
     # treat as string, map each unique value to an integer
@@ -263,24 +319,39 @@ def _dev_encode(param_dict,drop_name,param_name):
     I = np.delete(I,drop_idx,1)
     # make row of I for drop_name index
     I[drop_idx,:] = -1.
-    # make names out of values
-    col_names = []
+    # make map_dict[unique_value[i]] = I_row
+    map_dict = {}
     for i in np.arange(0,len(unique_values)):
-        col_names.append(param_name+":["+unique_values[i]+" - "+"mu"+"]")
-    # remove column name for drop_name
-    col_names.remove(param_name + ":[" + drop_name + " - " + "mu" + "]")
-    # use instruction matrix I to map parameter values to design matrix
-    X = np.empty((len(values),len(col_names)))
-    for i in np.arange(0,len(values)):
-        idx = unique_values.index(values[i])
-        X[i,:] = I[idx,:]
-    return X, col_names
+        map_dict[unique_values[i]] = np.float64(I[i,:])
+
+    # make parameter to designmatrix encoder function
+    def deviation_encoder(param_name,new_values):
+        # first check if new_values are outside the range of the originals
+        if set(new_values) != set(unique_values):
+            raise ValueError("Cannot extrapolate outside original parameter range")
+            
+        X = np.empty((len(new_values),len(map_dict[new_values[0]]-1)))
+        for i in np.arange(0,len(new_values)):
+            X[i,:] = map_dict[new_values[i]]
+
+        # make names out of values
+        col_names = []
+        for i in np.arange(0,len(unique_values)):
+            col_names.append(param_name+":["+unique_values[i]+" - "+"mu"+"]")
+        # remove column name for drop_name
+        col_names.remove(param_name + ":[" + drop_name + " - " + "mu" + "]")
+
+        return X, col_names
+
+    # use deviation_encoder to encode values
+    X, col_names = deviation_encoder(param_name,values)
+    return X, col_names, deviation_encoder
 
 
 def _dum_encode(param_dict,drop_name,param_name):
     # param_dict[col_name] = np.array(wave_values)
     values = param_dict[param_name]
-    # treat as string, map each unique value to an integer
+    # get unique values in order of appearance
     unique_values = []
     [unique_values.append(i) for i in values if not unique_values.count(i)]
     # warning if number of unique values is large compared to number of waveforms
@@ -291,18 +362,39 @@ def _dum_encode(param_dict,drop_name,param_name):
     # remove column of I for drop_name
     drop_idx = unique_values.index(drop_name)
     I = np.delete(I,drop_idx,1)
-    # make names out of values
-    col_names = []
+
+    # make map_dict[unique_value[i]] = I_row
+    map_dict = {}
     for i in np.arange(0,len(unique_values)):
-        col_names.append(param_name+":["+unique_values[i]+" - " + drop_name + "]")
-    # remove column name for drop_name
-    col_names.remove(param_name + ":[" + drop_name + " - " + drop_name + "]")
-    # use instruction matrix I to map parameter values to design matrix
-    X = np.empty((len(values),len(col_names)))
+        map_dict[unique_values[i]] = np.float64(I[i,:])
+
+    # use map_dict to encode design matrix
+    X = np.empty((len(values),len(map_dict[unique_values[0]]-1)))
     for i in np.arange(0,len(values)):
-        idx = unique_values.index(values[i])
-        X[i,:] = I[idx,:]
-    return X, col_names
+        X[i,:] = map_dict[values[i]]
+
+    # make parameter to designmatrix encoder function
+    def dummy_encoder(param_name, new_values):
+        # first check if new_values are outside the range of the originals
+        if set(new_values) != set(unique_values):
+            raise ValueError("Cannot extrapolate outside original parameter range")    
+    
+        X = np.empty((len(new_values),len(map_dict[new_values[0]]-1)))
+        for i in np.arange(0,len(new_values)):
+            X[i,:] = map_dict[new_values[i]]
+
+        # make column name strings
+        col_names = []
+        for i in np.arange(0,len(unique_values)):
+            col_names.append(param_name+":["+unique_values[i]+" - " + drop_name + "]")
+        # remove column name for drop_name
+        col_names.remove(param_name + ":[" + drop_name + " - " + drop_name + "]")
+
+        return X, col_names
+
+    # use dummy_encoder to encode
+    X, col_names = dummy_encoder(param_name,values)
+    return X, col_names, dummy_encoder
 
 
 
@@ -311,25 +403,40 @@ def _poly_encode(param_dict,degree,param_name):
     degree = int(degree)
     if len(np.unique(x)) < 5:
         warning.warn("Not many unique values of parameter %s for Poly encoding" & param_name)
-    # generate chebyshev polynomials
     n = degree
-    m = len(x)
-    # generate the z variable as a mapping of your x data into [-1,1]
-    z = ((x - min(x))-(max(x)-x))/(max(x) - min(x))
-    X = np.empty([m,n+1])
-    X[:,0] = np.ones([m,])
-    if n >= 1:
-        X[:,1] = z;
-    if n >= 2:
-        for k in np.arange(2, n+1):
-            X[:,k] = 2.*z*X[:,k-1] - X[:,k-2]
-    # remove first column of A (never keep intercept)
-    X = X[:,1:]
-    # generate names for each column
-    col_names = []
-    for i in np.arange(0,degree):
-        col_names.append(param_name + "^" + str(i+1))
-    return X, col_names
+    min_x = min(x)
+    max_x = max(x)
+
+    # make encoder function
+    def polynomial_encoder(param_name, new_values):  
+        # generate chebyshev polynomials
+        x = new_values
+        x = np.array(map(float, x))
+        
+        # check if new_values are outside the range of the originals
+        if (max(x) > max_x) or (min(x) < min_x):
+            raise ValueError("Cannot extrapolate outside original parameter range")          
+        
+        m = len(x)
+        # generate the z variable as a mapping of your x data into [-1,1]
+        z = ((x - min_x)-(max_x - x))/(max_x - min_x)
+        X = np.empty([m,n+1])
+        X[:,0] = np.ones([m,])
+        if n >= 1:
+            X[:,1] = z;
+        if n >= 2:
+            for k in np.arange(2, n+1):
+                X[:,k] = 2.*z*X[:,k-1] - X[:,k-2]
+        # remove first column of A (never keep intercept)
+        X = X[:,1:]
+        # generate names for each column
+        col_names = []
+        for i in np.arange(0,degree):
+            col_names.append(param_name + "^" + str(i+1))
+        return X, col_names
+
+    X, col_names = polynomial_encoder(param_name,x)
+    return X, col_names, polynomial_encoder
 
 def _bs_encode(param_dict,bsplineparameters, param_name):
     print "not implemented yet"

@@ -5,8 +5,7 @@ import re as re
 import csv as csv
 from tabulate import tabulate
 
-# TODO
-#detectorsetup class.  instead of simulating waveforms in one det, expand to det network
+# TODO detectorsetup class.  instead of simulating waveforms in one det, expand to det network
 
 class Multivar(object):
     """
@@ -21,7 +20,7 @@ class Multivar(object):
         Y,X,A,col_names,row_names = self._run_fits()
         # save fit results
         self._X                   = X
-        self._Y                   = Y
+        self.Y                    = Y
         self._A                   = A
         self._col_names           = col_names
         self._row_names           = row_names
@@ -60,7 +59,7 @@ class Multivar(object):
     def _fit_time_domain(self):
         # solve for estimators of B and Sigma_Z
         X      = np.matrix(self._X)
-        Y      = np.matrix(self._Y)
+        Y      = np.matrix(self.Y)
         A      = np.matrix(self._A)
         n,p    = np.shape(X)
         df     = float(n - p)
@@ -128,52 +127,91 @@ class Multivar(object):
             print "Condition Number of X^T*X: " + str(cond_num)
             print "Residual Sum-of-Squares in Component Space: %s" % self._sumofsquares
 
-    def predict(self,*arg):
-        # TODO Rewrite this.  this should call a DesignMatrix object, not do its work
-        #      needs a "combine_two_catalogs" function
-        if len(arg) == 0:
-            # then predict self._Y
-            Xpred = self._X
-            # make sure to just save the phys param names we want
-            formula_dict = parse_formula(self._formula)[0]
-            column_names = formula_dict.keys()
-            # save prediction parameters
-            self._prediction_params = self._parameter_df[column_names]
-        elif len(arg) == 1:
-            # then predict the extra dataframe parameters
-            new_df = arg[0]
-            #concat new_df underneath old df
-            # keys are column names of new_df and old_df that we want to keep
-            formula_dict = parse_formula(self._formula)[0]
-            column_names = formula_dict.keys()
-            new_df = new_df[column_names]
-            old_df = self._parameter_df[column_names]
-            # save prediction parameters
-            self._prediction_params = new_df[column_names]
-            # add column with label for new or old
-            new_df['Predict'] = True
-            old_df['Predict'] = False
-            # concat vertically
-            big_df = pd.concat([old_df,new_df])
-            # convert to design matrix
-            Xdf = formula_to_design_matrix(self._formula,big_df)
-            # which rows of Xdf to keep
-            keep = np.array(big_df[big_df['Predict'] == True].index)
-            Xpred = np.array(Xdf)[keep,:]
-        else:
-            raise Exception("Only one or two arguements allowed, not more")
-        # make predictions
-        if self._Bhat == 'Null':
-            raise Exception("Regression coefficients haven't been fit yet")
-        else:
-            Xpred = np.matrix(Xpred)
-            Bhat = np.matrix(self._Bhat)
-            Z = np.matrix(self._Z)
-            Y_new = np.array(Xpred*Bhat*Z.T)
-        self._Y_predicted = Y_new
+    def reconstruct(self):
+        X = self._designmatrix_object.get_X()
+        col_names = self._designmatrix_object.get_columnnames()
+        row_names = self._row_names
+        # now that we have the design matrix, column names, and wave_names ready
+        # time to predict
+        print np.shape(X)
+        print np.shape(self._Bhat)
+        A_pred = np.dot(X, self._Bhat)
+        # call inverse transform method of basis object on A_pred
+        return self._basis_object.inverse_transform(A_pred)
 
 
-    def combine_two_catalogs(self):
+
+    def predict(self,param_dict):
+        encoder_dict = self._designmatrix_object._encoder_dict
+        # predict first with non 'twoway' or 'threeway' functions
+        X_dict = {}
+        Xcol_dict = {}
+        # put each column of X in Xbycol_dict
+        Xbycol_dict = {}
+        for key in encoder_dict:
+            if (key != 'twoway') and (key != 'threeway'):
+                encoder = encoder_dict[key]
+                param_values = param_dict[key]
+                Xsub,names = encoder(key,param_values)
+                X_dict[key] = Xsub
+                Xcol_dict[key] = names
+                for i in np.arange(0,len(names)):
+                    Xbycol_dict[names[i]] = Xsub[:,i]
+
+        # now do interactions
+        inter_list = self._designmatrix_object._inter_list
+        for interaction in inter_list:
+            if len(interaction) == 2:
+                encoder = encoder_dict['twoway']
+                param_name1 = interaction[0]
+                param_name2 = interaction[1]
+                col_names1 = Xcol_dict[param_name1]
+                col_names2 = Xcol_dict[param_name2]
+                X_int, names = encoder(param_name1,param_name2, \
+                                       col_names1,col_names2, X_dict)
+
+                # put columns into Xbycol_dict
+                for i in np.arange(0,len(names)):
+                    Xbycol_dict[names[i]] = X_int[:,i]
+
+            elif len(interaction) == 3:
+                encoder = encoder_dict['threeway']
+                param_name1 = interaction[0]
+                param_name2 = interaction[1]
+                param_name3 = interaction[2]
+                col_names1 = Xcol_dict[param_name1]
+                col_names2 = Xcol_dict[param_name2]
+                col_names3 = Xcol_dict[param_name3]
+                X_int, names = encoder(param_name1,param_name2,param_name3, \
+                                       col_names1,col_names2,col_names3, X_dict)
+
+                # put columns into Xbycol_dict
+                for i in np.arange(0,len(names)):
+                    Xbycol_dict[names[i]] = X_int[:,i]
+
+            else:
+                print "this shouldnt have happenend"
+        # get original design matrix column ordering
+        col_names = self._designmatrix_object.get_columnnames()
+        row_names = self._row_names
+        X = []
+        for name in col_names:
+            X.append(Xbycol_dict[name])
+        # always add intercept column last
+        X.insert(0,np.ones(np.shape(X[0])))
+        # final design matrix
+        X = np.vstack(X).T
+        # now that we have the design matrix ready
+        # time to predict
+        print len(col_names)
+        print np.shape(X)
+        print np.shape(self._Bhat)
+        A_pred = np.dot(X, self._Bhat)
+        # call inverse transform method of basis object on A_pred
+        return self._basis_object.inverse_transform(A_pred)
+
+
+    def _combine_two_catalogs(self):
         """
         Combines two Catalog objects, and two DesignMatrix objects
             Perhaps call 'combine_two_catalogs' and 'combine_two_designmatrices'
@@ -182,12 +220,11 @@ class Multivar(object):
         print "not implemented yet"
 
 
-
-
-
     def load_detector(self, detector='H1'):
         self._detector = detector
         self._PSD = set_pst()
+
+
 
 def _set_psd(self):
     detector = self._detector
@@ -211,6 +248,7 @@ def _set_psd(self):
     psd[2000:8192] = 200.
     psd = np.concatenate((psd,psd[::-1])) 
     self._psd = psd
+
 
 
 def _GetDetectorPSD(detectorName, LIGO3FLAG=0):
@@ -264,6 +302,18 @@ def _GetDetectorPSD(detectorName, LIGO3FLAG=0):
              1.25*np.exp(0.071 + 2.83*x - 4.91*xSq))
         PSD = asd**2
     return PSD
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
