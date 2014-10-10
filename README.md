@@ -36,41 +36,42 @@ or
     pip install -U ccsnmultivar
 
 ## Basic Walkthrough
-Using the code happens in four steps:
+Using the code happens in five steps:
 
-1. Making a Basis object.
-2. Making a DesignMatrix object.
-3. Wrapping them in a Multivar object.
-4. Analysis using the Multivar object's methods.
+1. Instantiate a Catalog object
+2. Instantiate a Basis object.
+3. Instantiate a DesignMatrix object.
+4. Wrapping them in a Multivar object.
+5. Analysis using the Multivar object's methods.
 
 ```python
 # import code
-import ccsnmultivar as cm
+import ccsnmultivar as cc
 
 # load waveforms
 path_to_waveforms = "/path/to/waveforms.dat"
-# the Abdikamalov waveform file is called "Abdika13Y.dat"
-Y = cm.load_waveforms(path_to_waveforms)
+# the Abdikamalov waveform file is called "Abdika13_waveforms.csv"
+# instantiate Catalog object
+Y = cc.Catalog(path_to_waveforms)
 ```
 
 Note that Abdikamalov et al's 2013 waveform catalog and parameter file are included
-in the ccsnmultivar/ProcessedWaveforms directory of the GitHub repo as an example of 
-how to format the raw files for input.  To access these for the walkthrough, look at
-the right side of the GitHub page, there is a toolbar with a 
-Download button.  Download, then unzip.  
+in the Example_Waveforms directory of the GitHub repo as an example of how to format
+the raw files for input.  To access these for the walkthrough, look at the right side
+of the GitHub page, there is a toolbar with a Download button.  Download, then unzip.  
 
 Now we need to make two objects, a Basis object and a DesignMatrix object
 
-First we instantiate a Basis object.  Currently, there are two available types of Basis objects.
+First we instantiate a Basis object.  Currently, there are three available types of 
+Basis objects.
  
 1. PCA - using the Singular Value Decompostion (SVD)
 2. KCPA - Kernel PCA.  A wrapper for sklearns [Kernel PCA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA) 
+3. ICA - Independent Component Ananlysis.  A wrapper for skearns [FastICA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.FastICA.html)
 
 ```python
 # use a PCA basis keeping the first 10 Principal Components
-pca = cm.PCA(num_components=10)
-# to actually do the PCA, we have to "fit" the object to the waveforms Y
-pca.fit(Y)
+pca = cc.PCA(num_components=10)
 ```    
 Next we instantiate a DesignMatrix object.
 
@@ -79,7 +80,7 @@ Next we instantiate a DesignMatrix object.
 #    need to be translated to the design matrix.  Say we only want to use
 #    encodings of the parameters A and B (A is discrete, B is continuous)
 
-formula = "A + B + A*B | Dev(A,omit=2), Poly(B,degree=4)"
+formula = "A + B + A*B | Dum(A,omit=2), Poly(B,degree=4)"
 ```
 
 The formula contains 5 peices of information that determine how the design matrix is 
@@ -90,32 +91,32 @@ encoded.  Reading the formula from left to right:
 3. Include columns for interaction terms between parameters "A" and "B".  
 The "|" character seperates instructions for *what* goes into the design matrix from 
 *how* it goes in.
-4. Use a deviation encoding on parameter "A".  One value of "A" needs to be omitted 
-from the design matrix in a deviation encoding, this value is "2".
+4. Use a dummy variable encoding on parameter "A".  One value of "A" needs to be used as a
+reference in a dummy variable encoding, we chose value "2".
 4. Use a chebyshev polynomial encoding on parameter "B".  Fit "B" with a 4th degree polynomial.
 
-Now we instantiate the DesignMatrix object with two arguements, the formula, and the
+Now we instantiate the DesignMatrix object with two arguments: the formula, and the
 path to the parameter file.
 ```python
 
-# note that the provided Abdikamalov+ parameterfile is called "Abdika13params.csv"
+# note that the provided Abdikamalov+ parameterfile is called "Abdika13_params.csv"
 path_to_parameterfile = "/path/to/parameterfile.csv"
 
 # note that we dont need to load the paramfile, just supply the path.
-X_obj = cm.DesignMatrix(path_to_parameterfile, formula)
+X = cc.DesignMatrix(path_to_parameterfile, formula)
 ```
 
-Now with the waveforms in numpy array Y, the Basis object, and design matrix object on hand,
-we instantiate a multivar object with these three arguements.
+Now with the waveforms in the Catalog object Y, the Basis object pca, and DesignMatrix object 
+X on hand, we instantiate a Multivar object with these three arguements.
 
 ```python
 # instantiate Multivar object
-M = cm.Multivar(Y,X_obj, pca)
+M = cc.Multivar(Y,X, pca)
 
 ```
 
-This makes it easy to create many different DesignMatrix, Basis, and Multivar objects to test 
-different fits and parameter influences quickly.
+This makes it easy to create many different Catalog, DesignMatrix, Basis, and Multivar
+objects to test different fits and parameter influences very quickly.
 
 ```python
 # now we do a fit to time domain waveforms (solve for B)
@@ -140,36 +141,25 @@ B^3                      4.3            0.3
     .                     .              .
     .                     .              .
     
-# reconstruct waveforms from the original set of physical parameters (param_df)
-M.predict()
-
-# extract waveform reconstructions from M
-Y_rec = M.Y_predicted
-
-# predict waveforms given a new set of physical parameters
-M.predict(new_df)
-
-# extract waveform predictions from M
-Y_pred = M.Y_predicted
+# we can view the  waveform reconstructions with the Multivar method .reconstruct()
+Y_reconstructed = M.reconstruct()
 ```
 
 ## Dependencies
 * numpy
 * scipy
-* pandas
-* patsy
 * scikits-learn
 * tabulate
 
 ## Planned
 * More than one detector (the GW detector network)
-* waveform objects
+* Catalog objects
   - amplitude/phase decomposition, spectrograms, metadata
 * other PC basis methods 
-  - ICA, kmeans, fix KernelPCA, etc.
+  - kmeans, fix KernelPCA, etc.
 * other design matrix fitting methods 
   - splines, rbfs, etc.
-* crossvalidation with printed summary()
+* cross validation with printed summary()
 * Gaussian Process (or other interpolation/machine learning method) reconstructions
 
 
