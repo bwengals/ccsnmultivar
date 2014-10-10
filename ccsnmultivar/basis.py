@@ -87,7 +87,7 @@ class KPCA(object):
     """
     def __init__(self, num_components=10,catalog_name='unknown',kernel='polynomial',
                  alpha = 0.1,
-                 gamma = 1.0,
+                 gamma = 10.0,
                  degree = 2):
 
         self._decomposition  = 'Kernel PCA'

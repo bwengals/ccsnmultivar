@@ -69,7 +69,6 @@ class Multivar(object):
         R = A - X*Bhat
         Sigma_Z = R.T*R*(1./df)
         self._Bhat = np.array(Bhat)
-        self._sumofsquares = np.sum(np.sum(np.square(R)))
         columns = np.arange(0,np.shape(A)[1])
         T_2_list = []
         p_value_list = []
@@ -120,12 +119,22 @@ class Multivar(object):
             headers = self._results[0]
             table   = self._results[1:]
             print tabulate(table, headers, tablefmt="rst")
+
             X = np.matrix(self._X)
             # print condition number of X.T*X
             cond_num = np.linalg.cond(X.T*X)
+
+            # reconstruct waveforms to compute residual sum of sqs
+            A_pred = np.dot(X, self._Bhat)
+            # call inverse transform method of basis object on A_pred
+            Y_pred = self._basis_object.inverse_transform(A_pred)
+            # add mean waveform back to Y_pred
+            Y_pred = Y_pred + self._catalog_object._Ymean
+            # compute residual ssq
+            sumofsquares = np.sum(np.sum(np.square(self.Y - Y_pred)))
             print "Formula Used: %s" % self._designmatrix_object._formula
             print "Condition Number of X^T*X: " + str(cond_num)
-            print "Residual Sum-of-Squares in Component Space: %s" % self._sumofsquares
+            print "Residual Sum-of-Squares: %s" % sumofsquares
 
     def reconstruct(self):
         X = self._designmatrix_object.get_X()
@@ -133,12 +142,12 @@ class Multivar(object):
         row_names = self._row_names
         # now that we have the design matrix, column names, and wave_names ready
         # time to predict
-        print np.shape(X)
-        print np.shape(self._Bhat)
         A_pred = np.dot(X, self._Bhat)
         # call inverse transform method of basis object on A_pred
-        return self._basis_object.inverse_transform(A_pred)
-
+        Y_pred = self._basis_object.inverse_transform(A_pred)
+        # add mean waveform back to Y_pred
+        Y_pred = Y_pred + self._catalog_object._Ymean
+        return Y_pred
 
 
     def predict(self,param_dict):
@@ -203,12 +212,12 @@ class Multivar(object):
         X = np.vstack(X).T
         # now that we have the design matrix ready
         # time to predict
-        print len(col_names)
-        print np.shape(X)
-        print np.shape(self._Bhat)
         A_pred = np.dot(X, self._Bhat)
         # call inverse transform method of basis object on A_pred
-        return self._basis_object.inverse_transform(A_pred)
+        Y_pred = self._basis_object.inverse_transform(A_pred)
+        # add mean waveform back to Y_pred
+        Y_pred = Y_pred + self._catalog_object._Ymean
+        return Y_pred
 
 
     def _combine_two_catalogs(self):

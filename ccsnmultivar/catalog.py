@@ -26,23 +26,24 @@ class Catalog(object):
     def __init__(self, path_to_waveforms,catalog_name=None,transform_type='time'):
         if catalog_name == None:
             self._catalog_name = path_to_waveforms.split('/')[-1]
-        self._catalog_name   = catalog_name
-        self.Y_dict          = self._load_waveforms(path_to_waveforms)
-        self.Y_transformed   = None
-        self._Y_array        = None
-        self._transform      = transform_type
+
+        self._path_to_waveforms = path_to_waveforms
+        self._catalog_name      = catalog_name
+        self.Y_dict             = self._load_waveforms(path_to_waveforms)
+        self.Y_transformed      = None
+        self._Y_array           = None
+        self._transform         = transform_type
         self._set_metadata()
 
     def _set_metadata(self):
         # make metadata dictionary
         metadata = {}
         if self._catalog_name is None:
-            metadata['Catalog Name']    = path_to_waveforms
+            metadata['Catalog Name']    = self._path_to_waveforms
         else:
             metadata['Catalog Name']    = self._catalog_name
         metadata['Number of Waveforms'] = self._n_waves
         metadata['Waveform Domain']     = self._transform
-        print metadata
         self._metadata                  = metadata
 
     def _load_waveforms(self,path_to_waveforms):
@@ -71,7 +72,8 @@ class Catalog(object):
         # normalizing this way is *sort of* like normalizing each WF to have ssq = 1)
         self._Y_array = Y*(1./np.linalg.norm(Y,ord='fro'))*len(Y)
         # mean subtract
-        self._Y_array = self._Y_array - np.mean(self._Y_array,0)
+        self._Ymean = np.mean(self._Y_array,0) # needed for predict()
+        self._Y_array = self._Y_array - self._Ymean
         warnings.warn("Catalog has mean waveform subtracted, this was not done in the paper!")
         # now, replace Y_dict waveforms with the normalized waveforms
         Y_dict = {}
