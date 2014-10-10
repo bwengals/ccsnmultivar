@@ -122,25 +122,33 @@ objects to test different fits and parameter influences very quickly.
 # now we do a fit to time domain waveforms (solve for B)
 M.fit('time')
 
-# print/save summary of the hypothesis tests, fit metadata, and other
+# print/save summary of the hypothesis tests, metadata, and other
 # facts defined by the particular formula and basis used to make M.
 
 M.summary()
+
+Waveform Domain      time
+Number of Waveforms  92
+Catalog Name         Example_Catalogs/Abdika13_waveforms.csv
+Decomposition        PCA
+num_components       30
 =================  ================  =========
 Comparison           Hotellings T^2    p-value
 =================  ================  ========= 
-[A1 - A2]                3.59           0.1
-[A3 - A2]                6.88           0.52
-[A4 - A2]                0.4            0.99
+A:[1 - 2]                3.59           0.1
+A:[3 - 2]                6.88           0.52
+A:[4 - 2]                0.4            0.99
 B^1                     10.6            0.012
 B^2                     50.9            0.000
 B^3                      4.3            0.3
-[A1 - A2]*B^1            1.1            0.78
-[A1 - A2]*B^2           12.99           0.044
+A:[1 - 2]*B^1            1.1            0.78
+A:[1 - 2]*B^2           12.99           0.044
     .                     .              .
     .                     .              .
     .                     .              .
-    
+
+
+
 # we can view the  waveform reconstructions with the Multivar method .reconstruct()
 Y_reconstructed = M.reconstruct()
 ```
