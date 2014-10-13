@@ -246,11 +246,11 @@ def _encode_design_matrix(formula_dict, inter_list, param_dict):
                     for j in np.arange(0,X2.shape[1]):
                         for k in np.arange(0,X3.shape[1]):
                             X_int.append(X1[:,i]*X2[:,j]*X3[:,k])
-                            col_names.append(col_names1[i] + "*" + \
+                            names_int.append(col_names1[i] + "*" + \
                                              col_names2[j] + "*" + col_names3[k])
                 # make X_int from lists to np array
                 X_int = np.array(X_int).T
-                return X_int, col_names
+                return X_int, names_int
 
             # use 3way_encoder to compute interaction design matrix
             X_int, names_int = threeway_encoder(param_name1, \
@@ -279,12 +279,11 @@ def _encode_design_matrix(formula_dict, inter_list, param_dict):
                         X_int.append(X1[:,i]*X2[:,j])
                         names_int.append(col_names1[i] + "*" + col_names2[j])
                 X_int = np.array(X_int).T
-                return X_int, col_names
+                return X_int, names_int
 
             # use 2-way encoder to compute interaction design matrix
             X_int, names_int = twoway_encoder(param_name1, param_name2,\
                                               col_names1, col_names2, X_dict)
-
             encoder_dict['twoway'] = twoway_encoder
         else:
             raise Exception("Error while evaluating meaning of interaction term")

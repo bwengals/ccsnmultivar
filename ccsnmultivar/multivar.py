@@ -53,6 +53,12 @@ class Multivar(object):
         # make sure waveforms are matched
         # loop through Xrow_names, use as key for Y_dict, populate Y_matrix
         Y = np.empty((len(row_names),len(Y_dict[Y_dict.keys()[0]])))
+
+        # check if waveforms are complex valued.  if so, instantiate Y as complex type
+        if sum(np.iscomplex(Y_dict[Y_dict.keys()[0]])):
+            # then it is complex
+            Y.astype(np.complex,copy=False)
+
         for i in np.arange(0,len(row_names)):
             Y[i,:] = Y_dict[row_names[i]]
         # fit basis object
@@ -68,35 +74,44 @@ class Multivar(object):
     def fit(self):
         """ fit waveforms in any domain"""
         # solve for estimator of B
-        n,p          = np.shape(X)
+        n,p          = np.shape(self._X)
         self._df     = float(n - p)
         self._Cx     = np.linalg.pinv(np.dot(self._X.T,self._X))
         self._Bhat   = np.dot(np.dot(self._Cx, self._X.T), self._A)
         self._Y_rec  = self._compute_prediction(self._X)
 
 
-    def htest_summary(self):
+    def _compute_prediction(self,X):
+        """ compute predictions given a new X """
+        A_pred = np.dot(X,self._Bhat)
+        Y_pred = self._basis_object.inverse_transform(A_pred)
+        return Y_pred
+
+
+    def summary(self):
         """ prints results of hotellings T2 """
-        transform = self._catalog_object.transform
+        transform = self._catalog_object._transform
         if   transform == 'time':
-            results = self._hotellings_time()
+            print "hello"
+            self._hotellings_time()
         elif transform == 'fourier':
-            results = self._hotellings_fourier()
+            self._hotellings_fourier()
         elif transform == 'spectrogram':
-            results = self._hotellings_spectrogram()
+            self._hotellings_spectrogram()
         elif transform == 'amplitudephase':
-            results = self._hotellings_amplitudephase()
+            self._hotellings_amplitudephase()
         else:
             raise ValueError("Unknown catalog transformation")
         # print out to terminal
-        self.summary()
+        self._make_summary_tables()
 
 
     def _hotellings_time(self):
         """ hotelling's T2 tests for time domain waveforms"""
         # get residuals
-        R = self._A - np.dot(self._X,self._Bhat)
-        Sigma_Z = np.dot(R.T,R)*(1./self._df)
+        df = self._df
+        R = self._A - np.dot(self._X, self._Bhat)
+        Sigma_Z = np.dot(R.T,R)*(1./df)
         # compute p-values
         T_2_list = []
         p_value_list = []
@@ -112,49 +127,80 @@ class Multivar(object):
             p_value_list.append(p_value)
             T_2_list.append(T_2)
         # save pvalue results in a table
-        results = [['Comparison','Hotellings T^2', "p-value"]]
+        self._results = [['Comparison','Hotellings T^2', "p-value"]]
         for i in np.arange(0,len(self._col_names)):
-            results.append([self._col_names[i], T_2_list[i], p_value_list[i]])
-        return results
+            self._results.append([self._col_names[i], T_2_list[i], p_value_list[i]])
+
+
+
 
     # TODO
     def _hotellings_fourier(self):
         """ hotelling's T2 tests for fourier domain waveforms"""
+        # first load in PSD and fit results, compute residual
+        psd = _resample_GetDetectorPSD('H1')
+        # convert psd to noise standard deviations
+        sigma2 = psd/(2.*((1./16384.)**2))
+        # compute residual
+        df = self._df #degrees of freedom
+        R = self._A - np.dot(self._X, self._Bhat)
+        R = np.matrix(R)
+        # residual covariance matrix
+        Sigma_R = (R.H*R) * (1./df)
+        # noise covariance matrix
+        raise TypeError("fourier domain hypothesis tests not implemented yet")
+        # TODO NEED Z_ft, basis Z of PCs in fourier domain.  I dont think sklearn will
+        # be happy about this.  Can you even get PCs from nonlinear types of PCA?
+        Sigma_S = Zft.H*np.matrix(diag(sigma2))*Zft
+        # add covariances (sum of multivariate normals is normal)
+        Sigma_Z = Sigma_R + Sigma_S
 
+        T_2_list = []
+        p_value_list = []
+        for i in np.arange(0,self._Bhat.shape[0]):
+
+            Bstar       = self._Bhat[i,np.arange(0,np.shape(self._A)[1])]
+            lstar       = float(np.shape(Bstar)[0])
+            cx          = self._Cx[i,i]
+            Einv        = np.linalg.pinv(Sigma_Z)
+            Zs          = Bstar/np.sqrt(cx)
+            last_part   = np.array(np.matrix(Zs)*np.matrix(Einv)*np.matrix(Zs).H).real
+            T_2         = ((df - lstar + 1.)/(df*lstar))*last_part
+            p_value     = 1. - stats.f.cdf(T_2, 2.*lstar, 2.*(df - lstar + 1.))
             p_value_list.append(p_value)
             T_2_list.append(T_2)
         # save pvalue results in a table
         results = [['Comparison','Hotellings T^2', "p-value"]]
         for i in np.arange(0,len(self._col_names)):
             results.append([self._col_names[i], T_2_list[i], p_value_list[i]])
-        return results
+        self._results = results
 
-    # TODO
-    def _hotellings_spectrogram(self):
-        """ hotelling's T2 tests for time domain waveforms"""
+    # # TODO
+    # def _hotellings_spectrogram(self):
+    #     """ hotelling's T2 tests for time domain waveforms"""
 
-            p_value_list.append(p_value)
-            T_2_list.append(T_2)
-        # save pvalue results in a table
-        results = [['Comparison','Hotellings T^2', "p-value"]]
-        for i in np.arange(0,len(self._col_names)):
-            results.append([self._col_names[i], T_2_list[i], p_value_list[i]])
-        return results
+    #         p_value_list.append(p_value)
+    #         T_2_list.append(T_2)
+    #     # save pvalue results in a table
+    #     results = [['Comparison','Hotellings T^2', "p-value"]]
+    #     for i in np.arange(0,len(self._col_names)):
+    #         results.append([self._col_names[i], T_2_list[i], p_value_list[i]])
+    #     self._results = results
 
-    # TODO
-    def _hotellings_amplitudephase(self):
-        """ hotelling's T2 tests for amplitude/phase domain waveforms"""
+    # # TODO
+    # def _hotellings_amplitudephase(self):
+    #     """ hotelling's T2 tests for amplitude/phase domain waveforms"""
 
-            p_value_list.append(p_value)
-            T_2_list.append(T_2)
-        # save pvalue results in a table
-        results = [['Comparison','Hotellings T^2', "p-value"]]
-        for i in np.arange(0,len(self._col_names)):
-            results.append([self._col_names[i], T_2_list[i], p_value_list[i]])
-        return results
+    #         p_value_list.append(p_value)
+    #         T_2_list.append(T_2)
+    #     # save pvalue results in a table
+    #     results = [['Comparison','Hotellings T^2', "p-value"]]
+    #     for i in np.arange(0,len(self._col_names)):
+    #         results.append([self._col_names[i], T_2_list[i], p_value_list[i]])
+    #     self._results = results
 
 
-    def summary(self):
+    def _make_summary_tables(self):
         """
         prints the summary of the regression.  It shows
         the waveform metadata, diagnostics of the fit, and results of the
@@ -165,7 +211,7 @@ class Multivar(object):
         except:
             raise Exception("Regression hasn't been fit yet.  run .fit()")
         else:
-            # print catalog info
+            # print catalog and basis info
             cat_table = self._catalog_object.get_params().items()
             bas_table = self._basis_object.get_params().items()
             print tabulate(cat_table+bas_table,tablefmt='plain')
@@ -180,13 +226,6 @@ class Multivar(object):
             print "Fit Degrees of Freedom: %s" % str(self._X.shape[0] - self._X.shape[1])
             print "Condition Number of X^T*X: %.2f" % np.linalg.cond(np.dot(self._X.T, self._X))
             print "Residual Sum-of-Squares: %.2f" % np.sum(np.sum(np.square(self._Y - self._Y_rec)))
-
-
-    def _compute_prediction(self,X):
-        """ compute predictions given a new X """
-        A_pred = np.dot(X,self._Bhat)
-        Y_pred = self._basis_object.inverse_transform(A_pred)
-        return Y_pred
 
 
     def _renormalize_catalog(self,Y):
@@ -274,10 +313,9 @@ class Multivar(object):
         return efx_size
 
 
-    # TODO FIX THIS ONE
     def predict(self,param_dict):
         """#TODO predict new waveforms using multivar fit """
-        X, col_names = _parse_with_encoder_dict(param_dict, designmatrix_object)
+        X, col_names = _parse_with_encoder_dict(param_dict, self._designmatrix_object)
         # compute predictions
         Y_rec = self._compute_prediction(X)
         return Y_rec
@@ -404,7 +442,8 @@ def _parse_with_encoder_dict(param_dict,designmatrix_object):
     # get original design matrix column ordering
     col_names = designmatrix_object.get_columnnames()
     X = []
-    for name in col_names:
+    # col_names[1:] to exclude "Intercept"
+    for name in col_names[1:]:
         X.append(Xbycol_dict[name])
     # always add intercept column last
     X.insert(0,np.ones(np.shape(X[0])))

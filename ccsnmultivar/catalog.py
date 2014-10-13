@@ -1,6 +1,7 @@
 import csv as csv
 import numpy as np
 import warnings as warnings
+import scipy as sp
 
 class Catalog(object):
     """
@@ -33,8 +34,6 @@ class Catalog(object):
 
         self._path_to_waveforms = path_to_waveforms
         self.Y_dict             = self._load_waveforms(path_to_waveforms)
-        self.Y_transformed      = None
-        self._Y_array           = None
         self._transform         = transform_type
         self._set_metadata()
 
@@ -105,17 +104,21 @@ class Catalog(object):
         if self._transform.lower() == 'time':
             self.Y_transformed = self.Y_dict
         elif self._transform.lower() == 'fourier':
-            self.Y_transformed = self._fourier(self)
+            self._fourier()
         elif self._transform.lower() == 'spectrogram':
-            self.Y_transformed = self._spectrogram(self)
+            self._spectrogram()
         elif self._transform.lower() == 'amplitudephase':
-            self.Y_transformed = self._amplitudephase(self)
+            self._amplitudephase()
         else:
             raise ValueError("Bad input %s, transformation not defined" % typeof)
         return self.Y_transformed
 
     def _fourier(self):
-        print "not implemented yet"
+        """ Fourier transform all waveforms in catalog, assumes fs = 16384 """
+        Y_transformed = self.Y_dict.copy()
+        for key in self.Y_dict.keys():
+            Y_transformed[key] = sp.fft(self.Y_dict[key],n=None)
+        self.Y_transformed = Y_transformed
 
     def _spectogram(self):
         print "not implemented yet"
