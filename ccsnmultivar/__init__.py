@@ -11,7 +11,7 @@ from ccsnmultivar.multivar import Multivar
 from ccsnmultivar.designmatrix import DesignMatrix
 
 # imports of basis classes
-from ccsnmultivar.basis import PCA, KPCA, ICA
+from ccsnmultivar.basis import PCA, SPCA, ICA, SC
 
 # imports of catalog classes
 from ccsnmultivar.catalog import Catalog
