@@ -325,9 +325,9 @@ def _dev_encode(param_dict,drop_name,param_name):
 
     # make parameter to designmatrix encoder function
     def deviation_encoder(param_name,new_values):
-        # first check if new_values are outside the range of the originals
-        if set(new_values) != set(unique_values):
-            raise ValueError("Cannot extrapolate outside original parameter range")
+        # TODO: first check if new_values are outside the range of the originals
+        #if set(new_values) != set(unique_values):
+        #    raise ValueError("Cannot extrapolate outside original parameter range")
             
         X = np.empty((len(new_values),len(map_dict[new_values[0]]-1)))
         for i in np.arange(0,len(new_values)):
@@ -374,9 +374,9 @@ def _dum_encode(param_dict,drop_name,param_name):
 
     # make parameter to designmatrix encoder function
     def dummy_encoder(param_name, new_values):
-        # first check if new_values are outside the range of the originals
-        if set(new_values) != set(unique_values):
-            raise ValueError("Cannot extrapolate outside original parameter range")    
+        # TODO: first check if new_values are outside the range of the originals
+        #if set(new_values) != set(unique_values):
+        #    raise ValueError("Cannot extrapolate outside original parameter range")    
     
         X = np.empty((len(new_values),len(map_dict[new_values[0]]-1)))
         for i in np.arange(0,len(new_values)):

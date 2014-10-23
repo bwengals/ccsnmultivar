@@ -193,8 +193,34 @@ Mean:         0.858585006085
 Max:          0.98214781409
 ============  ==============
 
-
 ```
+One of the main goals of this method is to predict new waveforms, given a set of 
+physical parameters that wasn't originally used in the catalog.  For instance:
+
+```python
+# make a dictionary of the new parameters
+new_parameters = {}
+# quickly generate two waveforms, one with A = 1, beta = .1, another with 
+#    A = 3, beta = 0.05 (using the abdikamalov example)
+new_parameters['A'] = [str(1), str(3)]
+new_parameters['beta'] = [.1, .05]
+
+# use the predict method of the multivar object
+Y_new = M.predict(new_parameters)
+
+# plot the two waveform predictions (requires matplotlib)
+import matplotlib.pyplot as plt
+plt.plot(Y_new[0,8000:9000],label='A = 1, beta = .1')
+plt.plot(Y_new[1,8000:9000],label='A = 3, beta = .05')
+plt.legend()
+```
+
+With the Abdikamalov catalog, this is what you should see:
+
+![alt tag](Example_Catalogs/example_prediction.png)
+
+This allows one to rapidly interpolate the parameter space for core-collapse waveforms
+
 
 ## Dependencies
 * numpy

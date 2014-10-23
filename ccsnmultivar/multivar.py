@@ -336,6 +336,7 @@ class Multivar(object):
         X, col_names = _parse_with_encoder_dict(param_dict, self._designmatrix_object)
         # compute predictions
         Y_rec = self._compute_prediction(X)
+        Y_rec = self._renormalize_catalog(Y_rec)
         return Y_rec
 
 def _resample_GetDetectorPSD(detector):
