@@ -33,6 +33,10 @@ python setup.py install
 ```
 or
 
+    pip install ccsnmultivar
+
+Its a good idea to update often because the package is being changed often.  To update, type
+
     pip install -U ccsnmultivar
 
 ## Basic Walkthrough
@@ -51,27 +55,29 @@ import ccsnmultivar as cc
 # load waveforms
 path_to_waveforms = "/path/to/waveforms.dat"
 # the Abdikamalov waveform file is called "Abdika13_waveforms.csv"
-# instantiate Catalog object
-Y = cc.Catalog(path_to_waveforms)
+
+# we want to analyze the waveforms in the time domain, so instantiate
+#    a Catalog object with the transform_type arguement specified
+Y = cc.Catalog(path_to_waveforms,transform_type='time')
 ```
 
 Note that Abdikamalov et al's 2013 waveform catalog and parameter file are included
 in the Example_Waveforms directory of the GitHub repo as an example of how to format
 the raw files for input.  To access these for the walkthrough, look at the right side
-of the GitHub page, there is a toolbar with a Download button.  Download, then unzip.  
+of the GitHub page, there is a toolbar with a Download button.  Download, then unzip.
+The directory Example_Waveforms isn't included when the package is installed using pip.  
 
 Now we need to make two objects, a Basis object and a DesignMatrix object
 
-First we instantiate a Basis object.  Currently, there are three available types of 
-Basis objects.
+First we instantiate a Basis object.  Currently, there are two available types of 
+Basis objects, with more planned.
  
 1. PCA - using the Singular Value Decompostion (SVD)
-2. KCPA - Kernel PCA.  A wrapper for sklearns [Kernel PCA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA) 
-3. ICA - Independent Component Ananlysis.  A wrapper for skearns [FastICA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.FastICA.html)
+2. ICA - Independent Component Ananlysis.  A wrapper for skearns [FastICA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.FastICA.html)
 
 ```python
-# use a PCA basis keeping the first 10 Principal Components
-pca = cc.PCA(num_components=10)
+# use a PCA basis keeping the first 20 Principal Components
+pca = cc.PCA(num_components=20)
 ```    
 Next we instantiate a DesignMatrix object.
 
@@ -80,7 +86,7 @@ Next we instantiate a DesignMatrix object.
 #    need to be translated to the design matrix.  Say we only want to use
 #    encodings of the parameters A and B (A is discrete, B is continuous)
 
-formula = "A + B + A*B | Dum(A,omit=2), Poly(B,degree=4)"
+formula = "A + B + A*B | Dum(A,ref=2), Poly(B,degree=4)"
 ```
 
 The formula contains 5 peices of information that determine how the design matrix is 
@@ -120,37 +126,72 @@ objects to test different fits and parameter influences very quickly.
 
 ```python
 # now we do a fit to time domain waveforms (solve for B)
-M.fit('time')
+M.fit()
 
-# print/save summary of the hypothesis tests, metadata, and other
+# print summary of the hypothesis tests, metadata, and other
 # facts defined by the particular formula and basis used to make M.
 
 M.summary()
 
-Waveform Domain      time
-Number of Waveforms  92
-Catalog Name         Example_Catalogs/Abdika13_waveforms.csv
-Decomposition        PCA
-num_components       30
-=================  ================  =========
-Comparison           Hotellings T^2    p-value
-=================  ================  ========= 
-A:[1 - 2]                3.59           0.1
-A:[3 - 2]                6.88           0.52
-A:[4 - 2]                0.4            0.99
-B^1                     10.6            0.012
-B^2                     50.9            0.000
-B^3                      4.3            0.3
-A:[1 - 2]*B^1            1.1            0.78
-A:[1 - 2]*B^2           12.99           0.044
-    .                     .              .
-    .                     .              .
-    .                     .              .
 
+Waveform Domain           time
+Number of Waveforms       92
+Catalog Mean Subtracted?  False
+Catalog Name              Abdika13_waveforms.csv
+Normalization Factor      2.45651978042e+20
+Decomposition             PCA
+num_components            10
+================  ================  ===========
+Comparison          Hotellings T^2      p-value
+================  ================  ===========
+Intercept              1129.44      1.11022e-16
+A:[1 - 2]                87.9454    1.11022e-16
+A:[3 - 2]                 8.06119   5.49626e-08
+A:[4 - 2]                 1.8598    0.0700502
+A:[5 - 2]                 0.823121  0.607991
+beta^1                  257.711     1.11022e-16
+beta^2                  383.961     1.11022e-16
+beta^3                   93.1575    1.11022e-16
+beta^4                   18.3438    1.55431e-14
+A:[1 - 2]*beta^1         77.7596    1.11022e-16
+A:[1 - 2]*beta^2         14.0067    3.68272e-12
+     .                     .              .
+     .                     .              .
+     .                     .              .
 
 
 # we can view the  waveform reconstructions with the Multivar method .reconstruct()
 Y_reconstructed = M.reconstruct()
+
+# and pull out the original catalog waveforms for comparison
+Y_original = M.get_waveforms()
+
+# plot the last waveform in the array with its reconstruction (requires matplotlib)
+import matplotlib.pyplot as plt
+plt.plot(Y_original[-1,8000:9000],label='original')
+plt.plot(Y_reconstructed[-1,8000:9000],label='reconstruction')
+plt.legend()
+```
+![alt tag](Example_Catalogs/example_reconstruction.png)
+```python
+# look at a summary of the overlaps of the waveforms and their reconstructions
+M.overlap_summary()
+
+============  ==============
+Percentile    Overlap
+============  ==============
+5%:           0.64866522524
+25%:          0.809185728124
+50%:          0.879262580569
+75%:          0.949587383571
+95%:          0.97311500202
+
+Min:          0.518678320514
+Mean:         0.858585006085
+Max:          0.98214781409
+============  ==============
+
+
 ```
 
 ## Dependencies
@@ -160,15 +201,15 @@ Y_reconstructed = M.reconstruct()
 * tabulate
 
 ## Planned
-* More than one detector (the GW detector network)
+* Hotellings T2 with more than one GW detector
 * Catalog objects
-  - amplitude/phase decomposition, spectrograms, metadata
+  - amplitude/phase decomposition, spectrograms
 * other PC basis methods 
-  - kmeans, fix KernelPCA, etc.
+  - sparse basis decompositions, kmeans, etc.
 * other design matrix fitting methods 
   - splines, rbfs, etc.
-* cross validation with printed summary()
-* Gaussian Process (or other interpolation/machine learning method) reconstructions
+* different types of crossvalidation methods
+* Gaussian Process (or other interpolation/machine learning method) classes
 
 
 

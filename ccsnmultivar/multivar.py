@@ -24,6 +24,10 @@ class Multivar(object):
         Prints a summary of hypothesis tests encoded into the design matrix
         Also shows diagnostics of the fit, and metadata about the settings used to 
         produce it
+
+    .get_waveforms()
+        Returns the original core-collapse waveforms as a numpy array
+
     """
     def __init__(self, catalog_object, designmatrix_object, basis_object):
         # save input objects
@@ -67,9 +71,14 @@ class Multivar(object):
 
 
     def _get_waveforms(self):
-        """ return the waveforms as a numpy array """
+        """ return the (unnormalized) waveforms as a numpy array """
         return self._Y
 
+    def get_waveforms(self):
+        """ returns renormalized waveforms as a numpy array"""
+        Y = self._Y
+        Y = Y*(1./self._catalog_object.get_normalization())
+        return Y
 
     def fit(self):
         """ fit waveforms in any domain"""
@@ -92,7 +101,6 @@ class Multivar(object):
         """ prints results of hotellings T2 """
         transform = self._catalog_object._transform
         if   transform == 'time':
-            print "hello"
             self._hotellings_time()
         elif transform == 'fourier':
             self._hotellings_fourier()
@@ -211,6 +219,12 @@ class Multivar(object):
         except:
             raise Exception("Regression hasn't been fit yet.  run .fit()")
         else:
+            # check degrees of freedom
+            num_pcs = self._basis_object.get_params()['num_components']
+            total_dof = self._X.shape[0] - self._X.shape[1] - num_pcs
+            if total_dof <= 0.0:
+                raise ValueError("degrees of freedom <= 0, Hotellings T2 not defined")
+
             # print catalog and basis info
             cat_table = self._catalog_object.get_params().items()
             bas_table = self._basis_object.get_params().items()
@@ -221,9 +235,8 @@ class Multivar(object):
             headers = self._results[0]
             table   = self._results[1:]
             print tabulate(table, headers, tablefmt="rst")
-
             print "Formula Used: %s" % self._designmatrix_object._formula
-            print "Fit Degrees of Freedom: %s" % str(self._X.shape[0] - self._X.shape[1])
+            print "Degrees of Freedom (n - p - k): %s" % str(total_dof)
             print "Condition Number of X^T*X: %.2f" % np.linalg.cond(np.dot(self._X.T, self._X))
             print "Residual Sum-of-Squares: %.2f" % np.sum(np.sum(np.square(self._Y - self._Y_rec)))
 
@@ -240,28 +253,33 @@ class Multivar(object):
         Y_rec = self._renormalize_catalog(self._Y_rec)
         return Y_rec
 
-
+    # TODO print overlap table with [waveform name, parameters, overlap]
     def overlap_summary(self):
         """ print summary of reconstruction overlaps """
         olaps = self.compute_overlaps()
+
+
         # compute min, 25% 50% (median), mean, 75%, max
         table =  [["5%: ",np.percentile(olaps,5)],
-                 ["10%: ",np.percentile(olaps,10)],
-                 ["30%: ",np.percentile(olaps,30)],
+                 ["25%: ",np.percentile(olaps,25)],
                  ["50%: ",np.percentile(olaps,50)],
-                 ["70%: ",np.percentile(olaps,70)],
-                 ["90%: ",np.percentile(olaps,90)],
+                 ["75%: ",np.percentile(olaps,75)],
                  ["95%: ",np.percentile(olaps,95)],
+                 ["  " , "  "],
                  ["Min: ",np.min(olaps)],
                  ["Mean: ",np.mean(olaps)],
                  ["Max: ",np.max(olaps)]]
 
-        header = ["  ","Overlap Summary"]
+        header = ["Percentile","Overlap"]
         print tabulate(table,header,tablefmt="rst")
+
+    def leave_one_out_crossvalidation(self):
+        """ print summary of a leave-one-out crossvalidation run """ 
+        print "not implemented yet"
 
 
     def compute_overlaps(self, *args):
-        """ compute overlaps and print summary """
+        """ compute overlaps """
         if len(args) != 2:
             # renormalize the catalog and predictions and add mean back in
             Y_rec  = self._renormalize_catalog(self._Y_rec)

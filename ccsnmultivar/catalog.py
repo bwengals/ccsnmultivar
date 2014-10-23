@@ -27,8 +27,10 @@ class Catalog(object):
        - set_name(name)
          give catalog name (default is the waveform file name)
     """
-    def __init__(self, path_to_waveforms,catalog_name=None,transform_type='time'):
+    def __init__(self, path_to_waveforms,catalog_name=None,
+                 transform_type='time',mean_subtract=False):
         self._catalog_name      = catalog_name
+        self.mean_subtract      = mean_subtract
         if self._catalog_name == None:
             self._catalog_name = path_to_waveforms.split('/')[-1]
 
@@ -40,11 +42,12 @@ class Catalog(object):
     def _set_metadata(self):
         # make metadata dictionary
         metadata = {}
-        metadata['Catalog Name']        = self._catalog_name
-        metadata['Number of Waveforms'] = self._n_waves
-        metadata['Waveform Domain']     = self._transform
-        metadata['Normalization Factor']= self._norm_factor
-        self._metadata                  = metadata
+        metadata['Catalog Name']            = self._catalog_name
+        metadata['Number of Waveforms']     = self._n_waves
+        metadata['Waveform Domain']         = self._transform
+        metadata['Normalization Factor']    = self._norm_factor
+        metadata['Catalog Mean Subtracted?']= self.mean_subtract
+        self._metadata                      = metadata
 
     def _load_waveforms(self,path_to_waveforms):
         """
@@ -69,13 +72,19 @@ class Catalog(object):
         for i in np.arange(0,len(wave_list)):
             self._Y_array[i,:] = map(np.float, wave_list[i][1:])
             wave_names.append(wave_list[i][0])
+
         # mean subtract
-        self._Ymean = np.mean(self._Y_array,0) # needed for predict()
-        self._Y_array = self._Y_array - self._Ymean
+        if self.mean_subtract == True:
+            self._Ymean = np.mean(self._Y_array,0) # needed for predict()
+            self._Y_array = self._Y_array - self._Ymean
+            warnings.warn("Catalog has mean waveform subtracted")
+        else:
+            # just use the zero vector so Multivar.predict is happy
+            self._Ymean = np.zeros(np.shape(self._Y_array)[1])
+
         # normalizing this way is *sort of* like normalizing each WF to have ssq = 1)
         self._norm_factor = (1./np.linalg.norm(self._Y_array,ord='fro'))*len(self._Y_array)
         self._Y_array = self._Y_array*self._norm_factor
-        warnings.warn("Catalog has mean waveform subtracted, this was not done in the paper!")
         # now, replace Y_dict waveforms with the normalized waveforms
         Y_dict = {}
         for i in np.arange(0,self._n_waves):

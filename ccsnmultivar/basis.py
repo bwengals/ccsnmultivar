@@ -278,7 +278,7 @@ class SC(object):
                               alpha           = self._alpha,
                               transform_alpha = self._transform_alpha,
                               n_jobs          = self._n_jobs,
-                              verbose         = verbose
+                              verbose         = verbose,
                               random_state    = self._random_state)
 
     def fit(self,waveforms):
