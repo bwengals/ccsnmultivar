@@ -4,15 +4,13 @@
 This [Python](http://www.python.org/) module aids the analysis of core-collapse supernova gravitational waves.  It is the companion code for [this paper](http://arxiv.org/abs/1406.1164).
 
 * **Multivariate Regression** of Fourier Transformed or Time Domain waveforms
-* Hypothesis testing for measuring the influence of physical parameters
+* **Hypothesis testing** for measuring the influence of physical parameters
 * Optionally incorporate additional uncertainty due to detector noise
-* **Waveform reconstruction** and prediction
-* Fit and analyze waveforms in Principal Component space
-* Includes the [Abdikamalov et. al.](http://arxiv.org/abs/1311.3678) for use examples 
+* Approximate waveforms from anywhere within the parameter space 
+* Includes the [Abdikamalov et. al.](http://arxiv.org/abs/1311.3678) catalog for example use 
 
 ## Details
-* Uses pandas for data handling
-* A simplified formula language specific to this domain
+* A simplified formula language (like in R, or patsy) specific to this domain
 * [Documentation](http://ccsnmultivar.readthedocs.org/en/latest/)
 
 
@@ -53,7 +51,7 @@ Using the code happens in five steps:
 import ccsnmultivar as cc
 
 # load waveforms
-path_to_waveforms = "/path/to/waveforms.dat"
+path_to_waveforms = "/path/to/Abdika13_waveforms.csv"
 # the Abdikamalov waveform file is called "Abdika13_waveforms.csv"
 
 # we want to analyze the waveforms in the time domain, so instantiate
@@ -76,8 +74,8 @@ Basis objects, with more planned.
 2. ICA - Independent Component Ananlysis.  A wrapper for skearns [FastICA](http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.FastICA.html)
 
 ```python
-# use a PCA basis keeping the first 20 Principal Components
-pca = cc.PCA(num_components=20)
+# use a PCA basis keeping the first 10 Principal Components
+pca = cc.PCA(num_components=10)
 ```    
 Next we instantiate a DesignMatrix object.
 
@@ -86,27 +84,28 @@ Next we instantiate a DesignMatrix object.
 #    need to be translated to the design matrix.  Say we only want to use
 #    encodings of the parameters A and B (A is discrete, B is continuous)
 
-formula = "A + B + A*B | Dum(A,ref=2), Poly(B,degree=4)"
+formula = "A + beta + A*beta | Dum(A,ref=2), Poly(beta,degree=4)"
 ```
 
 The formula contains 5 peices of information that determine how the design matrix is 
 encoded.  Reading the formula from left to right:
 
 1. Include columns for the physical parameter named "A".
-2. Include columns for the physical parameter named "B".
-3. Include columns for interaction terms between parameters "A" and "B".  
+2. Include columns for the physical parameter named "beta".
+3. Include columns for interaction terms between parameters "A" and "beta".  
 The "|" character seperates instructions for *what* goes into the design matrix from 
 *how* it goes in.
 4. Use a dummy variable encoding on parameter "A".  One value of "A" needs to be used as a
 reference in a dummy variable encoding, we chose value "2".
-4. Use a chebyshev polynomial encoding on parameter "B".  Fit "B" with a 4th degree polynomial.
+5. Use a Chebyshev polynomial encoding on parameter "beta".  Fit "beta" with a 4th degree
+polynomial.
 
 Now we instantiate the DesignMatrix object with two arguments: the formula, and the
 path to the parameter file.
 ```python
 
 # note that the provided Abdikamalov+ parameterfile is called "Abdika13_params.csv"
-path_to_parameterfile = "/path/to/parameterfile.csv"
+path_to_parameterfile = "/path/to/Abdika13_params.csv"
 
 # note that we dont need to load the paramfile, just supply the path.
 X = cc.DesignMatrix(path_to_parameterfile, formula)
@@ -176,7 +175,7 @@ Using the Abdikamalov catalog, this is what you should see:
 
 ![alt tag](Example_Catalogs/example_reconstruction.png)
 ```python
-# look at a summary of the overlaps of the waveforms and their reconstructions
+# look at a summary of the overlaps between the waveforms and their reconstructions
 M.overlap_summary()
 
 ============  ==============
