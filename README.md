@@ -172,6 +172,8 @@ plt.plot(Y_original[-1,8000:9000],label='original')
 plt.plot(Y_reconstructed[-1,8000:9000],label='reconstruction')
 plt.legend()
 ```
+Using the Abdikamalov catalog, this is what you should see:
+
 ![alt tag](Example_Catalogs/example_reconstruction.png)
 ```python
 # look at a summary of the overlaps of the waveforms and their reconstructions
