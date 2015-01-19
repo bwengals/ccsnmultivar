@@ -29,6 +29,7 @@ class Catalog(object):
     """
     def __init__(self, path_to_waveforms,catalog_name=None,
                  transform_type='time',mean_subtract=False):
+        self._fs                = 16384.  # sampling frequency
         self._catalog_name      = catalog_name
         self.mean_subtract      = mean_subtract
         if self._catalog_name == None:
@@ -45,7 +46,6 @@ class Catalog(object):
         metadata['Catalog Name']            = self._catalog_name
         metadata['Number of Waveforms']     = self._n_waves
         metadata['Waveform Domain']         = self._transform
-        metadata['Normalization Factor']    = self._norm_factor
         metadata['Catalog Mean Subtracted?']= self.mean_subtract
         self._metadata                      = metadata
 
@@ -74,17 +74,14 @@ class Catalog(object):
             wave_names.append(wave_list[i][0])
 
         # mean subtract
-        if self.mean_subtract == True:
+        if self.mean_subtract:
             self._Ymean = np.mean(self._Y_array,0) # needed for predict()
             self._Y_array = self._Y_array - self._Ymean
             warnings.warn("Catalog has mean waveform subtracted")
-        else:
+        elif not self.mean_subtract:
             # just use the zero vector so Multivar.predict is happy
             self._Ymean = np.zeros(np.shape(self._Y_array)[1])
 
-        # normalizing this way is *sort of* like normalizing each WF to have ssq = 1)
-        self._norm_factor = (1./np.linalg.norm(self._Y_array,ord='fro'))*len(self._Y_array)
-        self._Y_array = self._Y_array*self._norm_factor
         # now, replace Y_dict waveforms with the normalized waveforms
         Y_dict = {}
         for i in np.arange(0,self._n_waves):
@@ -98,10 +95,8 @@ class Catalog(object):
         return self.Y_dict
 
     def get_transformed_Y(self):
+        """ return dictionary of named and transformed waveforms """
         return self.Y_transformed
-
-    def get_normalization(self):
-        return self._norm_factor
 
     def get_params(self):
         return self._metadata
@@ -116,23 +111,28 @@ class Catalog(object):
             self._fourier()
         elif self._transform.lower() == 'spectrogram':
             self._spectrogram()
-        elif self._transform.lower() == 'amplitudephase':
+        elif self._transform.lower() == 'amplitude':
             self._amplitudephase()
         else:
             raise ValueError("Bad input %s, transformation not defined" % typeof)
-        return self.Y_transformed
+        
 
     def _fourier(self):
-        """ Fourier transform all waveforms in catalog, assumes fs = 16384 """
+        """ 1 side Fourier transform and scale by dt all waveforms in catalog """
+        fs = self._fs
         Y_transformed = self.Y_dict.copy()
         for key in self.Y_dict.keys():
-            Y_transformed[key] = sp.fft(self.Y_dict[key],n=None)
+            dt = 1./fs
+            Y_transformed[key] = dt*sp.fft(self.Y_dict[key][0:8192],n=None)
         self.Y_transformed = Y_transformed
 
     def _spectogram(self):
         print "not implemented yet"
 
-    def _amplitudephase(self):
+    def _amplitude(self):
+        print "not implemented yet" 
+
+    def _phase(self):
         print "not implemented yet" 
 
 

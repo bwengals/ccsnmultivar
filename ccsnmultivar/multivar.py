@@ -44,6 +44,10 @@ class Multivar(object):
         self._row_names           = row_names
 
 
+    def deleteme_psd(self):
+        psd = _resample_GetDetectorPSD('H1')
+        return psd
+
     def _run_arguement_object_fits(self):
         """
         This function fits objects passed to Multivar, guarantees wave ordering in
@@ -51,9 +55,11 @@ class Multivar(object):
         """
         # run fits
         # fit catalog object
-        Y_dict = self._catalog_object.fit_transform()
+        Y_dict = self._catalog_object.get_transformed_Y()
         # fit designmatrix object
-        X,Xcol_names,row_names = self._designmatrix_object.fit_transform()
+        X = self._designmatrix_object.get_matrix()
+        Xcol_names = self._designmatrix_object.get_columnnames()
+        row_names = self._designmatrix_object.get_rownames()
         # make sure waveforms are matched
         # loop through Xrow_names, use as key for Y_dict, populate Y_matrix
         Y = np.empty((len(row_names),len(Y_dict[Y_dict.keys()[0]])))
@@ -61,7 +67,7 @@ class Multivar(object):
         # check if waveforms are complex valued.  if so, instantiate Y as complex type
         if sum(np.iscomplex(Y_dict[Y_dict.keys()[0]])):
             # then it is complex
-            Y.astype(np.complex,copy=False)
+            Y = np.empty((len(row_names),len(Y_dict[Y_dict.keys()[0]]))).astype(np.complex)
 
         for i in np.arange(0,len(row_names)):
             Y[i,:] = Y_dict[row_names[i]]
@@ -69,16 +75,9 @@ class Multivar(object):
         A = self._basis_object.fit_transform(Y)
         return Y, X, A, Xcol_names, row_names
 
-
-    def _get_waveforms(self):
-        """ return the (unnormalized) waveforms as a numpy array """
-        return self._Y
-
     def get_waveforms(self):
-        """ returns renormalized waveforms as a numpy array"""
-        Y = self._Y
-        Y = Y*(1./self._catalog_object.get_normalization())
-        return Y
+        """ returns waveforms as a numpy array"""
+        return self._Y
 
     def fit(self):
         """ fit waveforms in any domain"""
@@ -106,8 +105,10 @@ class Multivar(object):
             self._hotellings_fourier()
         elif transform == 'spectrogram':
             self._hotellings_spectrogram()
-        elif transform == 'amplitudephase':
-            self._hotellings_amplitudephase()
+        elif transform == 'amplitude':
+            self._hotellings_amplitude()
+        elif transform == 'phase':
+            self._hotellings_phase()
         else:
             raise ValueError("Unknown catalog transformation")
         # print out to terminal
@@ -140,8 +141,6 @@ class Multivar(object):
             self._results.append([self._col_names[i], T_2_list[i], p_value_list[i]])
 
 
-
-
     # TODO
     def _hotellings_fourier(self):
         """ hotelling's T2 tests for fourier domain waveforms"""
@@ -156,12 +155,12 @@ class Multivar(object):
         # residual covariance matrix
         Sigma_R = (R.H*R) * (1./df)
         # noise covariance matrix
-        raise TypeError("fourier domain hypothesis tests not implemented yet")
-        # TODO NEED Z_ft, basis Z of PCs in fourier domain.  I dont think sklearn will
-        # be happy about this.  Can you even get PCs from nonlinear types of PCA?
-        Sigma_S = Zft.H*np.matrix(diag(sigma2))*Zft
+        #raise TypeError("fourier domain hypothesis tests not implemented yet")
+        Zft = np.matrix(self._basis_object._Z)
+        print np.shape(Zft), np.shape(sigma2)
+        Sigma_S = Zft.H*np.matrix(np.diag(sigma2))*Zft
         # add covariances (sum of multivariate normals is normal)
-        Sigma_Z = Sigma_R + Sigma_S
+        Sigma_Z = np.array(Sigma_R + Sigma_S)
 
         T_2_list = []
         p_value_list = []
@@ -238,26 +237,15 @@ class Multivar(object):
             print "Formula Used: %s" % self._designmatrix_object._formula
             print "Degrees of Freedom (n - p - k): %s" % str(total_dof)
             print "Condition Number of X^T*X: %.2f" % np.linalg.cond(np.dot(self._X.T, self._X))
-            print "Residual Sum-of-Squares: %.2f" % np.sum(np.sum(np.square(self._Y - self._Y_rec)))
-
-
-    def _renormalize_catalog(self,Y):
-        """ undo normalization constant and mean subtraction applied by Catalog object"""
-        Y = Y + self._catalog_object._Ymean
-        Y = Y*(1./self._catalog_object.get_normalization())
-        return Y
-
 
     def reconstruct(self):
         """ return reconstructed waveforms fit by the multivar object"""
-        Y_rec = self._renormalize_catalog(self._Y_rec)
-        return Y_rec
+        return self._Y_rec
 
     # TODO print overlap table with [waveform name, parameters, overlap]
     def overlap_summary(self):
         """ print summary of reconstruction overlaps """
         olaps = self.compute_overlaps()
-
 
         # compute min, 25% 50% (median), mean, 75%, max
         table =  [["5%: ",np.percentile(olaps,5)],
@@ -273,21 +261,11 @@ class Multivar(object):
         header = ["Percentile","Overlap"]
         print tabulate(table,header,tablefmt="rst")
 
-    def leave_one_out_crossvalidation(self):
-        """ print summary of a leave-one-out crossvalidation run """ 
-        print "not implemented yet"
-
-
     def compute_overlaps(self, *args):
         """ compute overlaps """
-        if len(args) != 2:
-            # renormalize the catalog and predictions and add mean back in
-            Y_rec  = self._renormalize_catalog(self._Y_rec)
-            Y      = self._renormalize_catalog(self._get_waveforms())
-        else:
-            # then args[0] and args[1] should be numpy catalog arrays
-            Y_rec  = self._renormalize_catalog(args[0])
-            Y      = self._renormalize_catalog(args[1])
+        # add Ymean back in
+        Y_rec  = self._Y_rec + self._catalog_object.mean_subtract
+        Y      = self.get_waveforms() + self._catalog_object.mean_subtract
 
         olaps = []
         psd = _resample_GetDetectorPSD('H1')
@@ -296,47 +274,12 @@ class Multivar(object):
         return olaps
 
 
-    # TODO code works, idea doesnt...
-    def compute_effect_size(self,col_name_list):
-        """ compute effect size summary
-        Define effect size of X column called (a) as the average catalog
-            overlap difference between the True Waveforms and the
-            average when column a is removed.  Similarly for multiple columns
-        """
-        # set behavior is weird if just one column is given as a string
-        if type(col_name_list) == str:
-            # make it into a list of one element
-            col_name_list = [col_name_list]
-
-        # renormalize the catalog and predictions and add mean back in
-        Y_rec  = self._renormalize_catalog(self._Y_rec)
-        Y      = self._renormalize_catalog(self._get_waveforms())
-
-        # overlaps for full X reconstructions
-        fullX_olaps = self.compute_overlaps()
-
-        # make X_reduced by zeroing out the columns of col_name_list
-        col_names = self._designmatrix_object.get_columnnames()
-        zero_idx = []
-        X_reduced = self._designmatrix_object.get_X().copy()
-        for item in col_name_list:
-            idx = col_names.index(item)
-            X_reduced[:,idx] = 0.0
-
-        # compute overlaps for the X_reduced fit
-        Y_reduced = self._compute_prediction(X_reduced)
-        reducedX_olaps = self.compute_overlaps(Y,Y_reduced)
-
-        efx_size = np.mean(fullX_olaps) - np.mean(reducedX_olaps)
-        return efx_size
-
-
     def predict(self,param_dict):
         """#TODO predict new waveforms using multivar fit """
-        X, col_names = _parse_with_encoder_dict(param_dict, self._designmatrix_object)
+        encoder_dict = self._designmatrix_object.encoder
+        X, col_names = self._designmatrix_object.run_encoder(param_dict, encoder_dict)
         # compute predictions
         Y_rec = self._compute_prediction(X)
-        Y_rec = self._renormalize_catalog(Y_rec)
         return Y_rec
 
 def _resample_GetDetectorPSD(detector):
@@ -357,8 +300,8 @@ def _resample_GetDetectorPSD(detector):
     psd = np.concatenate((psd,np.ones(8191-2046)*large_f))
 
     # make unruley amplitudes at low and high frequencies ineffective
-    psd[0:11] = 200.
-    psd[2000:8192] = 200.
+    psd[0:11] = 1.
+    psd[2000:8192] = 1.
     psd = np.concatenate((psd,psd[::-1]))
     return psd
 
@@ -389,83 +332,5 @@ def _overlap(y,yr,psd):
     olap = yyr/np.sqrt(yy*yryr)
     return olap
 
-def _logL(y_actual, y_template,psd):
-    """ compute the noise weighted log likelihood of a template
-    waveform, given the true waveform (ssq residual assumed gaussian
-    detector noise distributed)
-    CODE BY SARAH GOSSAN FROM GWUtils.py
-    """
-    # frequency spacing
-    dF = 1.
-    # fourier transform y_actual and y_template
-    y_actual = sp.fft(y_actual,n=None)
-    y_template = sp.fft(y_template,n=None)
-    # calculate log-likelihood
-    chi2 = np.sum(pow(abs(y_actual - y_template), 2.)/psd)
-    logL = -2.*dF*chi2
-    return logL
 
 
-def _parse_with_encoder_dict(param_dict,designmatrix_object):
-    """ parse new param_dict using the encoder_dict from 
-    design matrix object """
-    encoder_dict = designmatrix_object._encoder_dict
-    inter_list = designmatrix_object._inter_list
-    # predict first with non 'twoway' or 'threeway' functions
-    X_dict = {}
-    Xcol_dict = {}
-    # put each column of X in Xbycol_dict
-    Xbycol_dict = {}
-    for key in encoder_dict:
-        if (key != 'twoway') and (key != 'threeway'):
-            encoder = encoder_dict[key]
-            param_values = param_dict[key]
-            Xsub,names = encoder(key,param_values)
-            X_dict[key] = Xsub
-            Xcol_dict[key] = names
-            for i in np.arange(0,len(names)):
-                Xbycol_dict[names[i]] = Xsub[:,i]
-
-    # now do interactions
-    for interaction in inter_list:
-        if len(interaction) == 2:
-            encoder = encoder_dict['twoway']
-            param_name1 = interaction[0]
-            param_name2 = interaction[1]
-            col_names1 = Xcol_dict[param_name1]
-            col_names2 = Xcol_dict[param_name2]
-            X_int, names = encoder(param_name1,param_name2, \
-                                   col_names1,col_names2, X_dict)
-
-            # put columns into Xbycol_dict
-            for i in np.arange(0,len(names)):
-                Xbycol_dict[names[i]] = X_int[:,i]
-
-        elif len(interaction) == 3:
-            encoder = encoder_dict['threeway']
-            param_name1 = interaction[0]
-            param_name2 = interaction[1]
-            param_name3 = interaction[2]
-            col_names1 = Xcol_dict[param_name1]
-            col_names2 = Xcol_dict[param_name2]
-            col_names3 = Xcol_dict[param_name3]
-            X_int, names = encoder(param_name1,param_name2,param_name3, \
-                                   col_names1,col_names2,col_names3, X_dict)
-
-            # put columns into Xbycol_dict
-            for i in np.arange(0,len(names)):
-                Xbycol_dict[names[i]] = X_int[:,i]
-
-        else:
-            print "this shouldnt have happenend"
-    # get original design matrix column ordering
-    col_names = designmatrix_object.get_columnnames()
-    X = []
-    # col_names[1:] to exclude "Intercept"
-    for name in col_names[1:]:
-        X.append(Xbycol_dict[name])
-    # always add intercept column last
-    X.insert(0,np.ones(np.shape(X[0])))
-    # final design matrix
-    X = np.vstack(X).T
-    return X, col_names
