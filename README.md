@@ -37,16 +37,56 @@ Its a good idea to update often because the package is being changed often.  To 
 
     pip install -U ccsnmultivar
 
+## If your in a hurry...
+Here is the code run in the walkthrough, ready for copy/paste.  Changes to ccsnmultivar will
+ likely also change the commands to use the package.  If you update or reinstall ccsnmultivar,
+look here first:
+
+```python
+# current workflow
+import ccsnmultivar as cc
+path_to_waveforms = "Example_Catalogs/Abdika13_waveforms.csv"
+path_to_params = "Example_Catalogs/Abdika13_params.csv"
+# make Catalog object
+Y = cc.Catalog(path_to_waveforms,transform_type="time")
+Y.fit_transform()
+# make Basis object
+pca = cc.PCA(num_components=7)
+# make DesignMatrix object
+formula = "A + beta + A*beta | Dum(A,ref=2), Poly(beta,degree=5)"
+X = cc.DesignMatrix(formula)
+X = X(path_to_params)
+# wrap together into multivar object
+M = cc.Multivar(Y,X,pca)
+M.fit()
+# display summaries
+M.summary()
+M.overlap_summary()
+# predict new waveforms
+new_parameters = {}
+new_parameters['A'] = ["1", "3"]
+new_parameters['beta'] = [.1, .05]
+Y_pred = M.predict(new_parameters) 
+# get reconstructed waveforms and original waveforms
+Y_reconstructed = M.reconstruct()
+Y_original = M.get_waveforms()
+```
+
+
+
 ## Basic Walkthrough
 Using the code happens in five steps:
 
 1. Instantiate a Catalog object
 2. Instantiate a Basis object.
 3. Instantiate a DesignMatrix object.
-4. Wrapping them in a Multivar object.
+4. Wrapping these in a Multivar object.
 5. Analysis using the Multivar object's methods.
 
+
+# Step 1.
 ```python
+
 # import code
 import ccsnmultivar as cc
 
@@ -57,6 +97,9 @@ path_to_waveforms = "/path/to/Abdika13_waveforms.csv"
 # we want to analyze the waveforms in the time domain, so instantiate
 #    a Catalog object with the transform_type arguement specified
 Y = cc.Catalog(path_to_waveforms,transform_type='time')
+
+# call the fit_transform method of the catalog object.
+Y.fit_transform()
 ```
 
 Note that Abdikamalov et al's 2013 waveform catalog and parameter file are included
@@ -65,6 +108,7 @@ the raw files for input.  To access these for the walkthrough, look at the right
 of the GitHub page, there is a toolbar with a Download button.  Download, then unzip.
 The directory Example_Waveforms isn't included when the package is installed using pip.  
 
+# Step 2.
 Now we need to make two objects, a Basis object and a DesignMatrix object
 
 First we instantiate a Basis object.  Currently, there are two available types of 
@@ -76,7 +120,9 @@ Basis objects, with more planned.
 ```python
 # use a PCA basis keeping the first 10 Principal Components
 pca = cc.PCA(num_components=10)
-```    
+```   
+
+# Step 3.
 Next we instantiate a DesignMatrix object.
 
 ```python
@@ -100,33 +146,42 @@ reference in a dummy variable encoding, we chose value "2".
 5. Use a Chebyshev polynomial encoding on parameter "beta".  Fit "beta" with a 4th degree
 polynomial.
 
-Now we instantiate the DesignMatrix object with two arguments: the formula, and the
-path to the parameter file.
+Now we instantiate the DesignMatrix object with the formula.
+
+```python
+X = cc.DesignMatrix(formula)
+```
+
+When the design matrix object is called on the path to the parameter file (using the format
+of the examples), it will make the actual design matrix.
+
 ```python
 
 # note that the provided Abdikamalov+ parameterfile is called "Abdika13_params.csv"
 path_to_parameterfile = "/path/to/Abdika13_params.csv"
 
-# note that we dont need to load the paramfile, just supply the path.
-X = cc.DesignMatrix(path_to_parameterfile, formula)
+# note that we dont need to load the paramfile, just supply the path. 
+# (How this is done will likely change)
+X = X(path_to_parameterfile)
 ```
 
+# Step 4.
 Now with the waveforms in the Catalog object Y, the Basis object pca, and DesignMatrix object 
 X on hand, we instantiate a Multivar object with these three arguements.
 
 ```python
-# instantiate Multivar object
+# instantiate and fit the Multivar object
 M = cc.Multivar(Y,X, pca)
-
+M.fit()
 ```
 
 This makes it easy to create many different Catalog, DesignMatrix, Basis, and Multivar
 objects to test different fits and parameter influences very quickly.
 
-```python
-# now we do a fit to time domain waveforms (solve for B)
-M.fit()
+# Step 5.
+Now the analysis functions can be called
 
+```python
 # print summary of the hypothesis tests, metadata, and other
 # facts defined by the particular formula and basis used to make M.
 
@@ -230,13 +285,15 @@ This allows one to rapidly interpolate the parameter space for core-collapse wav
 ## Planned
 * Hotellings T2 with more than one GW detector
 * Catalog objects
-  - amplitude/phase decomposition, spectrograms
+  - fix fourier transform_type
+  - use smaller sampling rate
+  - amplitude/phase transform
 * other PC basis methods 
   - sparse basis decompositions, kmeans, etc.
 * other design matrix fitting methods 
   - splines, rbfs, etc.
-* different types of crossvalidation methods
-* Gaussian Process (or other interpolation/machine learning method) classes
+* crossvalidation methods
+
 
 
 
