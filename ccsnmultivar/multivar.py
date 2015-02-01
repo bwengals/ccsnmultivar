@@ -43,11 +43,6 @@ class Multivar(object):
         self._col_names           = col_names
         self._row_names           = row_names
 
-
-    def deleteme_psd(self):
-        psd = _resample_GetDetectorPSD('H1')
-        return psd
-
     def _run_arguement_object_fits(self):
         """
         This function fits objects passed to Multivar, guarantees wave ordering in
@@ -87,14 +82,6 @@ class Multivar(object):
         self._Cx     = np.linalg.pinv(np.dot(self._X.T,self._X))
         self._Bhat   = np.dot(np.dot(self._Cx, self._X.T), self._A)
         self._Y_rec  = self._compute_prediction(self._X)
-
-
-    def _compute_prediction(self,X):
-        """ compute predictions given a new X """
-        A_pred = np.dot(X,self._Bhat)
-        Y_pred = self._basis_object.inverse_transform(A_pred)
-        return Y_pred
-
 
     def summary(self):
         """ prints results of hotellings T2 """
@@ -144,10 +131,7 @@ class Multivar(object):
     # TODO
     def _hotellings_fourier(self):
         """ hotelling's T2 tests for fourier domain waveforms"""
-        # first load in PSD and fit results, compute residual
-        psd = _resample_GetDetectorPSD('H1')
-        # convert psd to noise standard deviations
-        sigma2 = psd/(2.*((1./16384.)**2))
+        sigma_2 = self._catalog_object.sigma**2
         # compute residual
         df = self._df #degrees of freedom
         R = self._A - np.dot(self._X, self._Bhat)
@@ -157,8 +141,7 @@ class Multivar(object):
         # noise covariance matrix
         #raise TypeError("fourier domain hypothesis tests not implemented yet")
         Zft = np.matrix(self._basis_object._Z)
-        print np.shape(Zft), np.shape(sigma2)
-        Sigma_S = Zft.H*np.matrix(np.diag(sigma2))*Zft
+        Sigma_S = Zft.H*np.matrix(np.diag(sigma_2))*Zft
         # add covariances (sum of multivariate normals is normal)
         Sigma_Z = np.array(Sigma_R + Sigma_S)
 
@@ -263,49 +246,34 @@ class Multivar(object):
 
     def compute_overlaps(self, *args):
         """ compute overlaps """
-        # add Ymean back in
-        Y_rec  = self._Y_rec + self._catalog_object.mean_subtract
-        Y      = self.get_waveforms() + self._catalog_object.mean_subtract
-
         olaps = []
-        psd = _resample_GetDetectorPSD('H1')
+        Y = self._Y
+        psd = self._catalog_object.psd
         for i in np.arange(0,Y.shape[0]):
-            olaps.append(_overlap(Y[i,:], Y_rec[i,:], psd))
+            olaps.append(_overlap(Y[i,:], self._Y_rec[i,:], psd))
         return olaps
 
 
+    def _compute_prediction(self,X):
+        """ compute predictions given a new X """
+        A_pred = np.dot(X,self._Bhat)
+        Y_pred = self._basis_object.inverse_transform(A_pred)
+        return Y_pred
+
     def predict(self,param_dict):
-        """#TODO predict new waveforms using multivar fit """
+        """ predict new waveforms using multivar fit """
         encoder_dict = self._designmatrix_object.encoder
         X, col_names = self._designmatrix_object.run_encoder(param_dict, encoder_dict)
         # compute predictions
-        Y_rec = self._compute_prediction(X)
-        return Y_rec
+        Y_pred = self._compute_prediction(X)
+        return Y_pred
 
-def _resample_GetDetectorPSD(detector):
-    """ Resamples noise PSD to 16384 Hz """
-    # Load in detector noise curve for zero_det_high_p
-    psd = GWUtils.GetDetectorPSD(detector)
-    # psd has freq resolution = 1/3 with 6145 samples
-    dF = 1./3.
-    N_fd = 6145.
-    # interpolate to get resolution=1 and 8192 samples
-    # make the vector of frequencies for the PSD
-    psd_freqs = dF*np.ones(np.shape(psd))*np.arange(0,N_fd)
-    psd_interp = sp.interpolate.interp1d(psd_freqs,psd)
-    psd = psd_interp(np.arange(1,2048))
-
-    # concatenate with large frequencies out to frequency bin 8192
-    large_f = psd[2046]
-    psd = np.concatenate((psd,np.ones(8191-2046)*large_f))
-
-    # make unruley amplitudes at low and high frequencies ineffective
-    psd[0:11] = 1.
-    psd[2000:8192] = 1.
-    psd = np.concatenate((psd,psd[::-1]))
-    return psd
+    def get_prediction_function(self):
+        return self.predict
 
 
+
+# wont work with FFT waveforms
 def _inner_product(y,yr,psd):
     """
     Compute inner product between two time domain waveforms, weighted by noisecurve.
@@ -314,13 +282,12 @@ def _inner_product(y,yr,psd):
     fmax = 2000.
     fs = 16384.
     # fourier transform y and yr
-    y = sp.fft(y,n=None)
-    yr = sp.fft(yr,n=None)
+    #y = sp.fft(y,n=None)
+    #yr = sp.fft(yr,n=None)
     # compute product
     y = (1./fs)*y
     yr = (1./fs)*yr
     p = np.multiply(y,np.conjugate(yr))/psd
-    p = fs*sp.ifft(p)
     product = max(abs(fs*sp.ifft(np.multiply(y,np.conjugate(yr))/psd)))
     return product
 

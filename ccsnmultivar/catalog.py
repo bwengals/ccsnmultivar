@@ -2,13 +2,13 @@ import csv as csv
 import numpy as np
 import warnings as warnings
 import scipy as sp
+from scipy import signal
 
 class Catalog(object):
     """
     Catalog Object
     Holds waveforms, catalog meta data.  Does transformations.  When Catalog object is
          instantiated with a path, it loads waveforms at that directory.
-
     Catalog objects have 4 methods:
 
        - fit_transform(typeof)
@@ -27,66 +27,14 @@ class Catalog(object):
        - set_name(name)
          give catalog name (default is the waveform file name)
     """
-    def __init__(self, path_to_waveforms,catalog_name=None,
-                 transform_type='time',mean_subtract=False):
-        self._fs                = 16384.  # sampling frequency
-        self._catalog_name      = catalog_name
-        self.mean_subtract      = mean_subtract
-        if self._catalog_name == None:
-            self._catalog_name = path_to_waveforms.split('/')[-1]
-
-        self._path_to_waveforms = path_to_waveforms
-        self.Y_dict             = self._load_waveforms(path_to_waveforms)
-        self._transform         = transform_type
-        self._set_metadata()
-
-    def _set_metadata(self):
-        # make metadata dictionary
-        metadata = {}
-        metadata['Catalog Name']            = self._catalog_name
-        metadata['Number of Waveforms']     = self._n_waves
-        metadata['Waveform Domain']         = self._transform
-        metadata['Catalog Mean Subtracted?']= self.mean_subtract
-        self._metadata                      = metadata
-
-    def _load_waveforms(self,path_to_waveforms):
-        """
-         Waveforms must be:
-        - in a .csv or .dat file
-        - each row is a waveform, values comma separated
-        - each waveform is preprocessed
-            -- aligned to core bounce
-            -- all have same sampling frequencies
-            -- all have same number of time samples
-        - the name of the waveform is the first column
-        - subsequent columns are the waveform time samples
-        """
-        wave_list = list(csv.reader(open(path_to_waveforms,"rb")))
-        # delete empty elements (if any)
-        wave_list = [x for x in wave_list if x != []]
-        # how many waveforms in catalog
-        self._n_waves = len(wave_list)
-        # form wave_list into Y and wave_names
-        self._Y_array = np.empty((len(wave_list),np.shape(wave_list)[1]-1))
-        wave_names = []
-        for i in np.arange(0,len(wave_list)):
-            self._Y_array[i,:] = map(np.float, wave_list[i][1:])
-            wave_names.append(wave_list[i][0])
-
-        # mean subtract
-        if self.mean_subtract:
-            self._Ymean = np.mean(self._Y_array,0) # needed for predict()
-            self._Y_array = self._Y_array - self._Ymean
-            warnings.warn("Catalog has mean waveform subtracted")
-        elif not self.mean_subtract:
-            # just use the zero vector so Multivar.predict is happy
-            self._Ymean = np.zeros(np.shape(self._Y_array)[1])
-
-        # now, replace Y_dict waveforms with the normalized waveforms
-        Y_dict = {}
-        for i in np.arange(0,self._n_waves):
-            Y_dict[wave_names[i]] = self._Y_array[i,:]
-        return Y_dict
+    def __init__(self, Y_dict, metadata, catalog_name="Unspecified",
+                 transform_type='time'):
+        self._catalog_name           = catalog_name
+        self._transform              = transform_type
+        self.Y_dict                  = Y_dict
+        metadata['Catalog Name']     = self._catalog_name
+        metadata['Waveform Domain']  = self._transform
+        self._metadata               = metadata
 
     def get_catalog(self):
         """
@@ -106,7 +54,7 @@ class Catalog(object):
 
     def fit_transform(self):
         if self._transform.lower() == 'time':
-            self.Y_transformed = self.Y_dict
+            self._time()
         elif self._transform.lower() == 'fourier':
             self._fourier()
         elif self._transform.lower() == 'spectrogram':
@@ -115,16 +63,30 @@ class Catalog(object):
             self._amplitudephase()
         else:
             raise ValueError("Bad input %s, transformation not defined" % typeof)
-        
+
+    def _time(self):
+        """ time domain (no transform) """
+        self.Y_transformed = Y_dict
 
     def _fourier(self):
         """ 1 side Fourier transform and scale by dt all waveforms in catalog """
-        fs = self._fs
-        Y_transformed = self.Y_dict.copy()
+
+        freq_bin_upper = 2000
+        freq_bin_lower = 40
+        fs = self._metadata['fs']
+        Y_transformed = {}
         for key in self.Y_dict.keys():
-            dt = 1./fs
-            Y_transformed[key] = dt*sp.fft(self.Y_dict[key][0:8192],n=None)
+            # normalize by fs, bins have units strain/Hz
+            fs = self._metadata["fs"]
+            Y_transformed[key] = (1./fs)*np.fft.fft(self.Y_dict[key])[freq_bin_lower:freq_bin_upper]
         self.Y_transformed = Y_transformed
+        # add in transform metadata
+        self._metadata["dF"] = 1./self._metadata["T"]
+
+        # because we are in the fourier domain, we will need the psd
+        self.psd = load_psd()[freq_bin_lower:freq_bin_upper]
+        dF = self._metadata['dF']
+        self.sigma = convert_psd_to_sigma(self.psd, dF)
 
     def _spectogram(self):
         print "not implemented yet"
@@ -134,6 +96,81 @@ class Catalog(object):
 
     def _phase(self):
         print "not implemented yet" 
+
+    def mcmc_hook(self):
+        dF = self._metadata["dF"]
+        psd = self.psd
+        noise = sample_of_fd_noise(psd, dF)
+        return noise, psd
+
+def sample_of_fd_noise(psd, dF):
+    N = len(psd)
+    n = np.zeros((N),complex)
+    n_real = np.random.randn(N)*np.sqrt(psd/(4.*dF))
+    n_imag = np.random.randn(N)*np.sqrt(psd/(4.*dF))
+    n = n_real + 1j*n_imag
+    return n
+
+def load_psd():
+    """ Resamples advLIGO noise PSD to 4096 Hz """
+    # psd has freq resolution = 1/3 with 6145 samples
+    psd = np.loadtxt("ZERO_DET_high_P_PSD.txt")[:,1]
+    down_factor = 3
+    pad_size = int(np.ceil(float(psd.size)/down_factor)*down_factor - psd.size)
+    psd_padded = np.append(psd, np.zeros(pad_size)*np.NaN)
+    psd = sp.nanmean(psd_padded.reshape(-1,down_factor), axis=1)
+    # now dF = 1
+    # length of psd = 2048
+    return psd
+
+def convert_psd_to_sigma(psd, dF):
+    sigma = np.sqrt(psd/(4.*dF))
+    return sigma
+
+def resample_waveforms(Y_dict):
+    """
+        INPUT: - Dictionary of waveforms loaded from text file
+               - ALSO, Dictionary of timeseries indexed by name 
+
+        OUTPUT:
+               - Y_dict: resampled, normalized waveforms, ready for FFT
+                    - new parameters:
+                        + fs = 4096
+                        + time duration: 1 second
+               - metadata: dictionary of sampling information
+
+    """
+    # right now, Y_dict, using my ccsnmultivar github waveform sets
+    for key in Y_dict.keys():
+        Y_dict[key] = signal.decimate(Y_dict[key], 4, ftype='fir')
+    metadata = {}
+    metadata["fs"] = 4096. # in Hz
+    metadata["T"] = 1. # in seconds
+    metadata["source distance"] = 10. # in kpc
+    return Y_dict, metadata
+
+
+
+def load_waveforms_from_file(path_to_waveforms):
+    """
+     Waveforms must be:
+    - in a .csv or .dat file
+    - each row is a waveform, values comma separated
+    - each waveform is preprocessed
+        -- aligned to core bounce
+        -- all have same sampling frequencies
+        -- all have same number of time samples
+    - the name of the waveform is the first column
+    - subsequent columns are the waveform time samples
+    """
+    wave_list = list(csv.reader(open(path_to_waveforms,"rb")))
+    # delete empty elements (if any)
+    wave_list = [x for x in wave_list if x != []]
+    Y_dict = {}
+    for i in np.arange(0,len(wave_list)):
+        Y_dict[wave_list[i][0]] = map(np.float, wave_list[i][1:])
+    return Y_dict
+
 
 
 
