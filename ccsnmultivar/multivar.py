@@ -7,8 +7,6 @@ from tabulate import tabulate
 import GWUtils
 
 
-# TODO detectorsetup class.  instead of simulating waveforms in one det, expand to det network
-
 class Multivar(object):
     """
     Multivar objects combine the settings in a Catalog, DesignMatrix and Basis object.
@@ -252,7 +250,6 @@ class Multivar(object):
         for i in np.arange(0,Y.shape[0]):
             olaps.append(_overlap(Y[i,:], self._Y_rec[i,:], psd))
         return olaps
-
 
     def _compute_prediction(self,X):
         """ compute predictions given a new X """
