@@ -37,7 +37,7 @@ Its a good idea to update often because the package is being changed often.  To 
 
     pip install -U ccsnmultivar
 
-## If your in a hurry...
+## If you're in a hurry...
 Here is the code run in the walkthrough, ready for copy/paste.  Changes to ccsnmultivar will
  likely also change the commands to use the package.  If you update or reinstall ccsnmultivar,
 look here first:
